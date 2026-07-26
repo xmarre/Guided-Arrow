@@ -26,18 +26,37 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Verify bootstrap archives
+      - name: Record bootstrap archive integrity
+        id: integrity
+        continue-on-error: true
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path diagnostics | Out-Null
           $source = (Get-FileHash 'bootstrap/source.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
           $compiled = (Get-FileHash 'bootstrap/compiled.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($source -ne '5cebf175ad663c055fb3d70ab702f465644537976ad2b87eacb64d943337a08a') {
-            throw "Source bootstrap SHA-256 mismatch: $source"
-          }
-          if ($compiled -ne 'e6247478e7289454b9b9c736008bcfafb19a7e3113e6d80cfff942ccf82c0085') {
-            throw "Compiled bootstrap SHA-256 mismatch: $compiled"
-          }
+          $sourceSize = (Get-Item 'bootstrap/source.zip').Length
+          $compiledSize = (Get-Item 'bootstrap/compiled.zip').Length
+          @(
+            "source_sha256=$source"
+            "source_size=$sourceSize"
+            "compiled_sha256=$compiled"
+            "compiled_size=$compiledSize"
+          ) | Set-Content 'diagnostics/bootstrap-hashes.txt' -Encoding UTF8
+          if ($source -ne '5cebf175ad663c055fb3d70ab702f465644537976ad2b87eacb64d943337a08a') { exit 1 }
+          if ($compiled -ne 'e6247478e7289454b9b9c736008bcfafb19a7e3113e6d80cfff942ccf82c0085') { exit 1 }
+
+      - name: Upload bootstrap diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guided-arrow-bootstrap-integrity
+          path: diagnostics/bootstrap-hashes.txt
+          if-no-files-found: error
+
+      - name: Stop on integrity failure
+        if: steps.integrity.outcome != 'success'
+        shell: pwsh
+        run: throw 'Bootstrap archive integrity failed.'
 
       - name: Materialise clean repository
         shell: pwsh
@@ -56,6 +75,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Remove-Item 'bootstrap' -Recurse -Force
           Remove-Item 'work' -Recurse -Force
+          Remove-Item 'diagnostics' -Recurse -Force
           Remove-Item '.github/workflows/bootstrap-v1.2.1.yml' -Force
           Remove-Item 'artifacts' -Recurse -Force -ErrorAction SilentlyContinue
           git config user.name 'github-actions[bot]'
