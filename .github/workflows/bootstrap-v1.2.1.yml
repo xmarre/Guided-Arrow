@@ -26,7 +26,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Reconstruct and verify exact inputs
+      - name: Reconstruct and verify exact source archive
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -51,8 +51,17 @@ jobs:
             throw "Source bootstrap SHA-256 mismatch: $sourceHash"
           }
 
-          $coreUrl = 'https://raw.githubusercontent.com/xmarre/MapPerfFix/ci/guided-arrow-progression-v1.2.0/ci/input/GuidedArrow-v1.1.17-CLEAN.zip.b64'
-          Invoke-WebRequest -Uri $coreUrl -OutFile 'work/core.zip.b64' -UseBasicParsing
+      - name: Download and verify exact v1.1.17 core archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $coreApiUrl = 'https://api.github.com/repos/xmarre/MapPerfFix/contents/ci/input/GuidedArrow-v1.1.17-CLEAN.zip.b64?ref=ci%2Fguided-arrow-progression-v1.2.0'
+          $headers = @{
+            'Accept' = 'application/vnd.github.raw+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+            'User-Agent' = 'Guided-Arrow-Repository-Bootstrap'
+          }
+          Invoke-WebRequest -Uri $coreApiUrl -Headers $headers -OutFile 'work/core.zip.b64' -UseBasicParsing
           [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String([IO.File]::ReadAllText('work/core.zip.b64')))
           $coreHash = (Get-FileHash 'work/core.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "Core archive SHA-256: $coreHash"
