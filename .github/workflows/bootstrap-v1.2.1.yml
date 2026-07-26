@@ -30,8 +30,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force -Path 'work', 'work/core', 'checksums' | Out-Null
-
+          New-Item -ItemType Directory -Force -Path 'work', 'work/core', 'checksums', 'diagnostics' | Out-Null
           $chunkPaths = @(
             'bootstrap/source.000.b64',
             'bootstrap/source.001.b64',
@@ -52,24 +51,54 @@ jobs:
           }
 
       - name: Download and verify exact v1.1.17 core archive
+        id: core
+        continue-on-error: true
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $blobUrl = 'https://api.github.com/repos/xmarre/MapPerfFix/git/blobs/3d8a935613b81546ea03cff97afe3df0802c741a'
-          $headers = @{
-            'Accept' = 'application/vnd.github+json'
-            'X-GitHub-Api-Version' = '2022-11-28'
-            'User-Agent' = 'Guided-Arrow-Repository-Bootstrap'
+          try {
+            $blobUrl = 'https://api.github.com/repos/xmarre/MapPerfFix/git/blobs/3d8a935613b81546ea03cff97afe3df0802c741a'
+            $headers = @{
+              'Accept' = 'application/vnd.github+json'
+              'X-GitHub-Api-Version' = '2022-11-28'
+              'User-Agent' = 'Guided-Arrow-Repository-Bootstrap'
+            }
+            $blob = Invoke-RestMethod -Uri $blobUrl -Headers $headers
+            @(
+              "encoding=$($blob.encoding)"
+              "declared_size=$($blob.size)"
+              "content_chars=$($blob.content.Length)"
+            ) | Set-Content 'diagnostics/core.txt' -Encoding UTF8
+            if ($blob.encoding -ne 'base64') { throw "Unexpected GitHub blob encoding: $($blob.encoding)" }
+            $decodedBlob = [Convert]::FromBase64String(($blob.content -replace '\s', ''))
+            "decoded_blob_bytes=$($decodedBlob.Length)" | Add-Content 'diagnostics/core.txt'
+            $coreArchiveBase64 = [Text.Encoding]::UTF8.GetString($decodedBlob)
+            "archive_base64_chars=$($coreArchiveBase64.Length)" | Add-Content 'diagnostics/core.txt'
+            [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String($coreArchiveBase64))
+            $coreHash = (Get-FileHash 'work/core.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+            "core_zip_bytes=$((Get-Item 'work/core.zip').Length)" | Add-Content 'diagnostics/core.txt'
+            "core_sha256=$coreHash" | Add-Content 'diagnostics/core.txt'
+            if ($coreHash -ne '7a6d1d73581ef73d491281baf33a372da3aa7209871d4d463938c5361aac3241') {
+              throw "Core archive SHA-256 mismatch: $coreHash"
+            }
           }
-          $blob = Invoke-RestMethod -Uri $blobUrl -Headers $headers
-          if ($blob.encoding -ne 'base64') { throw "Unexpected GitHub blob encoding: $($blob.encoding)" }
-          $coreArchiveBase64 = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($blob.content -replace '\s', '')))
-          [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String($coreArchiveBase64))
-          $coreHash = (Get-FileHash 'work/core.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
-          Write-Host "Core archive SHA-256: $coreHash"
-          if ($coreHash -ne '7a6d1d73581ef73d491281baf33a372da3aa7209871d4d463938c5361aac3241') {
-            throw "Core archive SHA-256 mismatch: $coreHash"
+          catch {
+            "exception=$($_.Exception.Message)" | Add-Content 'diagnostics/core.txt'
+            throw
           }
+
+      - name: Upload core diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guided-arrow-core-diagnostic
+          path: diagnostics/core.txt
+          if-no-files-found: error
+
+      - name: Stop on core failure
+        if: steps.core.outcome != 'success'
+        shell: pwsh
+        run: throw 'Core archive retrieval failed; inspect guided-arrow-core-diagnostic.'
 
       - name: Materialise, build and package repository
         shell: pwsh
@@ -77,18 +106,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Expand-Archive -LiteralPath 'work/source-bootstrap.zip' -DestinationPath '.' -Force
           Expand-Archive -LiteralPath 'work/core.zip' -DestinationPath 'work/core' -Force
-
           $moduleBin = 'module/GuidedArrow/bin/Win64_Shipping_Client'
           New-Item -ItemType Directory -Force -Path $moduleBin, 'checksums' | Out-Null
           Copy-Item 'work/core/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll' "$moduleBin/GuidedArrow.dll" -Force
-
           $coreDllHash = (Get-FileHash "$moduleBin/GuidedArrow.dll" -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($coreDllHash -ne '0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0') {
             throw "Core DLL SHA-256 mismatch: $coreDllHash"
           }
-
           ./build.ps1
-
           $required = @(
             'src/GuidedArrow.Progression/GuidedArrow.Progression.csproj',
             'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll',
@@ -110,9 +135,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Remove-Item 'bootstrap' -Recurse -Force
           Remove-Item 'work' -Recurse -Force
+          Remove-Item 'diagnostics' -Recurse -Force
           Remove-Item '.github/workflows/bootstrap-v1.2.1.yml' -Force
           Remove-Item 'artifacts' -Recurse -Force -ErrorAction SilentlyContinue
-
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
