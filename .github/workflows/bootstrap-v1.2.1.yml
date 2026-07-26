@@ -1,0 +1,61 @@
+name: Bootstrap Guided Arrow v1.2.1 repository
+
+on:
+  push:
+    branches:
+      - setup/v1.2.1-clean
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Verify bootstrap archives
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = (Get-FileHash 'bootstrap/source.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $compiled = (Get-FileHash 'bootstrap/compiled.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($source -ne '5cebf175ad663c055fb3d70ab702f465644537976ad2b87eacb64d943337a08a') {
+            throw "Source bootstrap SHA-256 mismatch: $source"
+          }
+          if ($compiled -ne 'e6247478e7289454b9b9c736008bcfafb19a7e3113e6d80cfff942ccf82c0085') {
+            throw "Compiled bootstrap SHA-256 mismatch: $compiled"
+          }
+
+      - name: Materialise clean repository
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive -LiteralPath 'bootstrap/source.zip' -DestinationPath '.' -Force
+          New-Item -ItemType Directory -Force -Path 'work/compiled' | Out-Null
+          Expand-Archive -LiteralPath 'bootstrap/compiled.zip' -DestinationPath 'work/compiled' -Force
+          Copy-Item 'work/compiled/GuidedArrow/bin' 'module/GuidedArrow/bin' -Recurse -Force
+          ./build.ps1
+
+      - name: Commit clean source and binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Remove-Item 'bootstrap' -Recurse -Force
+          Remove-Item 'work' -Recurse -Force
+          Remove-Item '.github/workflows/bootstrap-v1.2.1.yml' -Force
+          Remove-Item 'artifacts' -Recurse -Force -ErrorAction SilentlyContinue
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add clean Guided Arrow v1.2.1 source and compiled module'
+          git push origin HEAD:setup/v1.2.1-clean
