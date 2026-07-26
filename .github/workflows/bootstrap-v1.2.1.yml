@@ -55,14 +55,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $coreApiUrl = 'https://api.github.com/repos/xmarre/MapPerfFix/contents/ci/input/GuidedArrow-v1.1.17-CLEAN.zip.b64?ref=ci%2Fguided-arrow-progression-v1.2.0'
+          $blobUrl = 'https://api.github.com/repos/xmarre/MapPerfFix/git/blobs/3d8a935613b81546ea03cff97afe3df0802c741a'
           $headers = @{
-            'Accept' = 'application/vnd.github.raw+json'
+            'Accept' = 'application/vnd.github+json'
             'X-GitHub-Api-Version' = '2022-11-28'
             'User-Agent' = 'Guided-Arrow-Repository-Bootstrap'
           }
-          Invoke-WebRequest -Uri $coreApiUrl -Headers $headers -OutFile 'work/core.zip.b64' -UseBasicParsing
-          [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String([IO.File]::ReadAllText('work/core.zip.b64')))
+          $blob = Invoke-RestMethod -Uri $blobUrl -Headers $headers
+          if ($blob.encoding -ne 'base64') { throw "Unexpected GitHub blob encoding: $($blob.encoding)" }
+          $coreArchiveBase64 = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($blob.content -replace '\s', '')))
+          [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String($coreArchiveBase64))
           $coreHash = (Get-FileHash 'work/core.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "Core archive SHA-256: $coreHash"
           if ($coreHash -ne '7a6d1d73581ef73d491281baf33a372da3aa7209871d4d463938c5361aac3241') {
