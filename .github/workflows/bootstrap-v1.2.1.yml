@@ -26,58 +26,75 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Record bootstrap archive integrity
-        id: integrity
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path diagnostics | Out-Null
-          $source = (Get-FileHash 'bootstrap/source.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
-          $compiled = (Get-FileHash 'bootstrap/compiled.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
-          $sourceSize = (Get-Item 'bootstrap/source.zip').Length
-          $compiledSize = (Get-Item 'bootstrap/compiled.zip').Length
-          @(
-            "source_sha256=$source"
-            "source_size=$sourceSize"
-            "compiled_sha256=$compiled"
-            "compiled_size=$compiledSize"
-          ) | Set-Content 'diagnostics/bootstrap-hashes.txt' -Encoding UTF8
-          if ($source -ne '5cebf175ad663c055fb3d70ab702f465644537976ad2b87eacb64d943337a08a') { exit 1 }
-          if ($compiled -ne 'e6247478e7289454b9b9c736008bcfafb19a7e3113e6d80cfff942ccf82c0085') { exit 1 }
-
-      - name: Upload bootstrap diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: guided-arrow-bootstrap-integrity
-          path: diagnostics/bootstrap-hashes.txt
-          if-no-files-found: error
-
-      - name: Stop on integrity failure
-        if: steps.integrity.outcome != 'success'
-        shell: pwsh
-        run: throw 'Bootstrap archive integrity failed.'
-
-      - name: Materialise clean repository
+      - name: Reconstruct and verify exact inputs
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          Expand-Archive -LiteralPath 'bootstrap/source.zip' -DestinationPath '.' -Force
-          New-Item -ItemType Directory -Force -Path 'work/compiled' | Out-Null
-          Expand-Archive -LiteralPath 'bootstrap/compiled.zip' -DestinationPath 'work/compiled' -Force
-          Copy-Item 'work/compiled/GuidedArrow/bin' 'module/GuidedArrow/bin' -Recurse -Force
+          New-Item -ItemType Directory -Force -Path 'work', 'work/core', 'checksums' | Out-Null
+
+          $chunkPaths = 0..3 | ForEach-Object { 'bootstrap/source.{0:D3}.b64' -f $_ }
+          foreach ($chunkPath in $chunkPaths) {
+            if (-not (Test-Path $chunkPath)) { throw "Missing source chunk: $chunkPath" }
+          }
+          $sourceBase64 = [string]::Concat(($chunkPaths | ForEach-Object { [IO.File]::ReadAllText($_) }))
+          [IO.File]::WriteAllBytes('work/source-bootstrap.zip', [Convert]::FromBase64String($sourceBase64))
+          $sourceHash = (Get-FileHash 'work/source-bootstrap.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Source bootstrap SHA-256: $sourceHash"
+          if ($sourceHash -ne '5cebf175ad663c055fb3d70ab702f465644537976ad2b87eacb64d943337a08a') {
+            throw "Source bootstrap SHA-256 mismatch: $sourceHash"
+          }
+
+          $coreUrl = 'https://raw.githubusercontent.com/xmarre/MapPerfFix/ci/guided-arrow-progression-v1.2.0/ci/input/GuidedArrow-v1.1.17-CLEAN.zip.b64'
+          Invoke-WebRequest -Uri $coreUrl -OutFile 'work/core.zip.b64' -UseBasicParsing
+          [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String([IO.File]::ReadAllText('work/core.zip.b64')))
+          $coreHash = (Get-FileHash 'work/core.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Core archive SHA-256: $coreHash"
+          if ($coreHash -ne '7a6d1d73581ef73d491281baf33a372da3aa7209871d4d463938c5361aac3241') {
+            throw "Core archive SHA-256 mismatch: $coreHash"
+          }
+
+      - name: Materialise, build and package repository
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive -LiteralPath 'work/source-bootstrap.zip' -DestinationPath '.' -Force
+          Expand-Archive -LiteralPath 'work/core.zip' -DestinationPath 'work/core' -Force
+
+          $moduleBin = 'module/GuidedArrow/bin/Win64_Shipping_Client'
+          New-Item -ItemType Directory -Force -Path $moduleBin, 'checksums' | Out-Null
+          Copy-Item 'work/core/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll' "$moduleBin/GuidedArrow.dll" -Force
+
+          $coreDllHash = (Get-FileHash "$moduleBin/GuidedArrow.dll" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($coreDllHash -ne '0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0') {
+            throw "Core DLL SHA-256 mismatch: $coreDllHash"
+          }
+
           ./build.ps1
 
-      - name: Commit clean source and binaries
+          $required = @(
+            'src/GuidedArrow.Progression/GuidedArrow.Progression.csproj',
+            'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll',
+            'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.dll',
+            'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.pdb',
+            'dist/GuidedArrow-v1.2.1-Bannerlord-1.3.15-to-1.4.7-Universal.zip',
+            'dist/GuidedArrow-v1.2.1-SOURCE.zip',
+            'checksums/SHA256SUMS.txt',
+            '.github/workflows/build.yml'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) { throw "Required repository output missing: $path" }
+          }
+
+      - name: Commit clean source and compiled outputs
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           Remove-Item 'bootstrap' -Recurse -Force
           Remove-Item 'work' -Recurse -Force
-          Remove-Item 'diagnostics' -Recurse -Force
           Remove-Item '.github/workflows/bootstrap-v1.2.1.yml' -Force
           Remove-Item 'artifacts' -Recurse -Force -ErrorAction SilentlyContinue
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
