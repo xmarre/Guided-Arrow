@@ -32,7 +32,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force -Path 'work', 'work/core', 'checksums' | Out-Null
 
-          $chunkPaths = 0..3 | ForEach-Object { 'bootstrap/source.{0:D3}.b64' -f $_ }
+          $chunkPaths = @(
+            'bootstrap/source.000.b64',
+            'bootstrap/source.001.b64',
+            'bootstrap/source.002a.b64',
+            'bootstrap/source.002b.b64',
+            'bootstrap/source.003a.b64',
+            'bootstrap/source.003b.b64'
+          )
           foreach ($chunkPath in $chunkPaths) {
             if (-not (Test-Path $chunkPath)) { throw "Missing source chunk: $chunkPath" }
           }
