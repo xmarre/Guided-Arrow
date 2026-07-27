@@ -45,7 +45,7 @@ namespace GuidedArrow.Progression
             Type settingsType = assembly.GetType("GuidedArrow.Settings", false);
             Type behaviorType = assembly.GetType("GuidedArrow.GuidedArrowBehavior", false);
             if (settingsType != null) PatchSettings(harmony, settingsType);
-            if (behaviorType != null) PatchBehavior(harmony, behaviorType);
+            if (behaviorType != null) PatchBehavior(harmony, behaviorType, settingsType);
         }
 
         private static void PatchSettings(Harmony harmony, Type settingsType)
@@ -74,7 +74,7 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static void PatchBehavior(Harmony harmony, Type behaviorType)
+        private static void PatchBehavior(Harmony harmony, Type behaviorType, Type settingsType)
         {
             _generationField = AccessTools.Field(behaviorType, "_activeShotGeneration");
             _shooterField = AccessTools.Field(behaviorType, "_activeShotShooter");
@@ -110,6 +110,8 @@ namespace GuidedArrow.Progression
             PatchBoolResult(harmony, behaviorType, "IsAgentPenetrationOverrideEnabled", nameof(PenetrationEnabledPostfix));
             PatchBoolResult(harmony, behaviorType, "IsAutoguidanceEligibleMissile", nameof(AutoguidanceEligiblePostfix));
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
+            if (settingsType != null)
+                NativeVolleyOverridePatch.Install(harmony, behaviorType, settingsType);
         }
 
         private static void PatchBoolResult(Harmony harmony, Type type, string methodName, string postfixName)
