@@ -50,13 +50,14 @@ namespace GuidedArrow.Progression
                 _trackedIndexField == null)
                 return;
 
+            // These are the two outer per-frame entry points. Patching the private methods they call
+            // as well would repeat the same scan several times per frame without closing another
+            // native-lifetime gap.
             PatchPrefixes(
                 harmony,
                 behaviorType,
                 "OnMissionTick",
-                "OnPreDisplayMissionTick",
-                "TickGuidanceDisplay",
-                "ProcessDeferredNativeMissileWork");
+                "OnPreDisplayMissionTick");
 
             PatchPostfixes(
                 harmony,
@@ -236,13 +237,13 @@ namespace GuidedArrow.Progression
                 return;
             }
 
-            var liveIndices = new HashSet<int>();
             object firstMissile = null;
             int firstIndex = -1;
             object currentLeader = _leaderMissileField?.GetValue(instance);
             int currentLeaderIndex = ReadInt(_leaderIndexField, instance, -1);
             int cameraIndex = ReadInt(_cameraMissileIndexField, instance, -1);
             bool currentLeaderIsLive = false;
+            bool cameraOwnerIsLive = cameraIndex < 0;
 
             for (int i = 0; i < tracked.Count; i++)
             {
@@ -262,7 +263,6 @@ namespace GuidedArrow.Progression
                 }
 
                 if (index < 0 || missile == null) continue;
-                liveIndices.Add(index);
                 if (firstMissile == null)
                 {
                     firstMissile = missile;
@@ -271,6 +271,8 @@ namespace GuidedArrow.Progression
 
                 if (index == currentLeaderIndex && ReferenceEquals(missile, currentLeader))
                     currentLeaderIsLive = true;
+                if (index == cameraIndex)
+                    cameraOwnerIsLive = true;
             }
 
             bool ownershipWasActive = currentLeader != null || currentLeaderIndex >= 0 || cameraIndex >= 0;
@@ -285,7 +287,7 @@ namespace GuidedArrow.Progression
 
             // -1 is an intentional suspended/returned camera state. Preserve it. Repair only a
             // positive camera owner that no longer belongs to this exact live guided set.
-            if (cameraIndex >= 0 && !liveIndices.Contains(cameraIndex))
+            if (!cameraOwnerIsLive)
                 _cameraMissileIndexField?.SetValue(instance, effectiveLeaderIndex);
         }
 
