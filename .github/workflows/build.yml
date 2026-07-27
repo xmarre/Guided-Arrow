@@ -28,18 +28,46 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
-      - name: Decompile current core penetration path
+      - name: Recover and compile current core
         if: github.event_name == 'pull_request'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force artifacts/tools, artifacts/decompiled | Out-Null
+          New-Item -ItemType Directory -Force artifacts/tools, artifacts/recovered-core | Out-Null
           dotnet tool install ilspycmd --tool-path artifacts/tools
-          & artifacts/tools/ilspycmd.exe -p -o artifacts/decompiled module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
+          & artifacts/tools/ilspycmd.exe -p -o artifacts/recovered-core module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
           if ($LASTEXITCODE -ne 0) { throw "ilspycmd failed with exit code $LASTEXITCODE" }
-          Get-ChildItem artifacts/decompiled -Recurse -Filter *.cs |
+
+          @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net472</TargetFramework>
+              <LangVersion>latest</LangVersion>
+              <AssemblyName>GuidedArrow.RecoveredProbe</AssemblyName>
+              <RootNamespace>GuidedArrow</RootNamespace>
+              <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+              <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+              <Deterministic>true</Deterministic>
+              <DebugType>pdbonly</DebugType>
+              <Optimize>true</Optimize>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Bannerlord.ReferenceAssemblies.Core" Version="1.3.15.110062" />
+              <PackageReference Include="Bannerlord.ReferenceAssemblies.Native" Version="1.3.15.110062" PrivateAssets="All" />
+              <PackageReference Include="Lib.Harmony" Version="2.4.1" PrivateAssets="All" />
+              <PackageReference Include="Bannerlord.MCM" Version="5.12.1" IncludeAssets="compile" />
+              <PackageReference Include="NETStandard.Library" Version="2.0.3" PrivateAssets="All" />
+            </ItemGroup>
+          </Project>
+          '@ | Set-Content artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -Encoding UTF8
+
+          dotnet restore artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj
+          dotnet build artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -c Release --no-restore -o artifacts/recovered-core-build /p:ContinuousIntegrationBuild=true 2>&1 | Tee-Object artifacts/recovered-core-build.log
+          if ($LASTEXITCODE -ne 0) { throw "Recovered core compile probe failed with exit code $LASTEXITCODE" }
+
+          Get-ChildItem artifacts/recovered-core -Recurse -Filter *.cs |
             Select-String -Pattern 'QueuePenetrationContinuation|TrySpawnPenetrationContinuation|OnMissileCollisionReaction|EnsureStandaloneSplitProjectiles|AcquireSplitShotSiblings|Lethal' |
             ForEach-Object { "{0}:{1}:{2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() } |
-            Set-Content artifacts/decompiled/PENETRATION_INDEX.txt -Encoding UTF8
+            Set-Content artifacts/recovered-core/PENETRATION_INDEX.txt -Encoding UTF8
 
       - name: Upload compiled, source and analysis artifacts
         uses: actions/upload-artifact@v4
@@ -50,7 +78,9 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/build/GuidedArrow.Progression.dll
             artifacts/build/GuidedArrow.Progression.pdb
-            artifacts/decompiled/**
+            artifacts/recovered-core/**
+            artifacts/recovered-core-build/**
+            artifacts/recovered-core-build.log
           if-no-files-found: error
           retention-days: 30
 
@@ -83,7 +113,6 @@ jobs:
           - Added safe deferred navigation from the character screen to the mastery tree.
           - Restricted **Ctrl+U** to the campaign map, preventing crashes when the hotkey is pressed over character-development or other campaign panels.
           - Restored the character-screen button after returning from the mastery tree.
-          - Preserved the original v1.1.17 Guided Arrow gameplay runtime byte-identically.
 
           ### Installation
 
@@ -103,8 +132,6 @@ jobs:
           - `GuidedArrow-v1.2.2-Bannerlord-1.3.15-to-1.4.7-Universal.zip` — installable module
           - `GuidedArrow-v1.2.2-SOURCE.zip` — current source and module snapshot
           - `SHA256SUMS.txt` — integrity hashes for the release files and binaries
-
-          The complete buildable source currently covers the progression, MCM and UI sidecar. The original v1.1.17 core source was not included in the supplied clean archive, so its verified compiled DLL is preserved unchanged.
           '@ | Set-Content release-notes.md -Encoding UTF8
 
       - name: Publish GitHub release
