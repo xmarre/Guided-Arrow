@@ -65,10 +65,12 @@ jobs:
           ### Autoguidance and penetration stability
 
           - Validates every controlled missile against Bannerlord's live mission registry before guidance and camera ticks.
-          - Removes stale or replaced native missile wrappers before the core can read or steer them.
+          - Preserves legitimate native wrapper replacement only after the core's existing identity refresh confirms the same projectile.
+          - Removes registry-missing, identity-mismatched or recycled wrappers before the core can read or steer them.
           - Defers post-penetration target advancement until the continuing projectile exists on the next stable mission/display tick.
           - Prevents collision-time nearby-agent scans, skeleton/head lookups and route assignment during native missile teardown.
-          - Removes deferred access to the previous victim's native visuals when spawning synthetic penetration continuations.
+          - Captures the depth-aware continuation exit distance during collision and carries only that float into deferred creation.
+          - Removes deferred access to the previous victim's position, visuals and native entity when spawning synthetic continuations.
           - Purges removed agents from active, planned and consumed Autoguidance target state.
           - Preserves intentional camera suspension and return states instead of restoring a stale projectile camera owner.
           - Keeps the verified v1.1.17 gameplay core byte-identical and applies the correction through the maintained sidecar.
