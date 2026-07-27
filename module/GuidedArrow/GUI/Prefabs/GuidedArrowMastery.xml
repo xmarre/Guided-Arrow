@@ -33,26 +33,35 @@
           </Children>
         </ListPanel>
 
-        <ListPanel WidthSizePolicy="Fixed" SuggestedWidth="1580" HeightSizePolicy="Fixed" SuggestedHeight="735"
+        <ListPanel WidthSizePolicy="Fixed" SuggestedWidth="1580" HeightSizePolicy="Fixed" SuggestedHeight="700"
                    HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="148"
                    StackLayout.LayoutMethod="HorizontalLeftToRight">
           <Children>
             <Widget WidthSizePolicy="Fixed" SuggestedWidth="1120" HeightSizePolicy="StretchToParent">
               <Children>
-                <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="260" HeightSizePolicy="Fixed" SuggestedHeight="34"
-                            HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="2"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="24" Brush.FontColor="#82A947FF"
+                <Widget DoNotAcceptEvents="true" WidthSizePolicy="Fixed" SuggestedWidth="4" HeightSizePolicy="Fixed" SuggestedHeight="48"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" PositionYOffset="-70" Sprite="Clan\divider_mid"/>
+                <Widget DoNotAcceptEvents="true" WidthSizePolicy="Fixed" SuggestedWidth="48" HeightSizePolicy="Fixed" SuggestedHeight="4"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" PositionXOffset="-126" Sprite="Clan\divider_mid"/>
+                <Widget DoNotAcceptEvents="true" WidthSizePolicy="Fixed" SuggestedWidth="48" HeightSizePolicy="Fixed" SuggestedHeight="4"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" PositionXOffset="126" Sprite="Clan\divider_mid"/>
+                <Widget DoNotAcceptEvents="true" WidthSizePolicy="Fixed" SuggestedWidth="4" HeightSizePolicy="Fixed" SuggestedHeight="62"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" PositionYOffset="76" Sprite="Clan\divider_mid"/>
+
+                <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="260" HeightSizePolicy="Fixed" SuggestedHeight="32"
+                            HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="0"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="23" Brush.FontColor="#82A947FF"
                             Brush.TextHorizontalAlignment="Center" Text="HUNTER'S MIND"/>
                 <ListPanel DataSource="{HunterNodes}" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                           HeightSizePolicy="Fixed" SuggestedHeight="305" HorizontalAlignment="Center"
-                           VerticalAlignment="Top" MarginTop="34" StackLayout.LayoutMethod="VerticalBottomToTop">
+                           HeightSizePolicy="Fixed" SuggestedHeight="270" HorizontalAlignment="Center"
+                           VerticalAlignment="Top" MarginTop="30" StackLayout.LayoutMethod="VerticalBottomToTop">
                   <ItemTemplate>
                     <ButtonWidget DoNotPassEventsToChildren="true" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                                  HeightSizePolicy="Fixed" SuggestedHeight="56" MarginTop="5" Brush="Header.Tab.Center"
+                                  HeightSizePolicy="Fixed" SuggestedHeight="48" MarginTop="4" Brush="Header.Tab.Center"
                                   Command.Click="ExecuteSelect" IsSelected="@IsSelected" UpdateChildrenStates="true">
                       <Children>
                         <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                    Brush="Clan.TabControl.Text" Brush.FontSize="15" Brush.TextHorizontalAlignment="Center"
+                                    Brush="Clan.TabControl.Text" Brush.FontSize="13" Brush.TextHorizontalAlignment="Center"
                                     Brush.TextVerticalAlignment="Center" Text="@ButtonText"/>
                       </Children>
                     </ButtonWidget>
@@ -117,15 +126,15 @@
                 </ListPanel>
 
                 <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="300" HeightSizePolicy="Fixed" SuggestedHeight="34"
-                            HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="250"
+                            HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="225"
                             Brush="Clan.TabControl.Text" Brush.FontSize="24" Brush.FontColor="#C47731FF"
                             Brush.TextHorizontalAlignment="Center" Text="PIERCING DOCTRINE"/>
                 <ListPanel DataSource="{PiercingNodes}" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                           HeightSizePolicy="Fixed" SuggestedHeight="210" HorizontalAlignment="Center"
-                           VerticalAlignment="Bottom" MarginBottom="18" StackLayout.LayoutMethod="VerticalTopToBottom">
+                           HeightSizePolicy="Fixed" SuggestedHeight="205" HorizontalAlignment="Center"
+                           VerticalAlignment="Bottom" MarginBottom="12" StackLayout.LayoutMethod="VerticalTopToBottom">
                   <ItemTemplate>
                     <ButtonWidget DoNotPassEventsToChildren="true" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                                  HeightSizePolicy="Fixed" SuggestedHeight="60" MarginBottom="7" Brush="Header.Tab.Center"
+                                  HeightSizePolicy="Fixed" SuggestedHeight="58" MarginBottom="6" Brush="Header.Tab.Center"
                                   Command.Click="ExecuteSelect" IsSelected="@IsSelected" UpdateChildrenStates="true">
                       <Children>
                         <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
@@ -158,7 +167,7 @@
 
                 <ListPanel DataSource="{NeedleNodes}" WidthSizePolicy="Fixed" SuggestedWidth="225"
                            HeightSizePolicy="Fixed" SuggestedHeight="76" HorizontalAlignment="Left"
-                           VerticalAlignment="Bottom" MarginLeft="118" MarginBottom="28" StackLayout.LayoutMethod="HorizontalCentered">
+                           VerticalAlignment="Bottom" MarginLeft="118" MarginBottom="20" StackLayout.LayoutMethod="HorizontalCentered">
                   <ItemTemplate>
                     <ButtonWidget DoNotPassEventsToChildren="true" WidthSizePolicy="Fixed" SuggestedWidth="225"
                                   HeightSizePolicy="Fixed" SuggestedHeight="76" Brush="Header.Tab.Center"
@@ -177,33 +186,33 @@
             <ListPanel WidthSizePolicy="Fixed" SuggestedWidth="430" HeightSizePolicy="StretchToParent" MarginLeft="22"
                        StackLayout.LayoutMethod="VerticalTopToBottom">
               <Children>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="62"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="30" Brush.TextHorizontalAlignment="Center"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="58"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="29" Brush.TextHorizontalAlignment="Center"
                             Brush.TextVerticalAlignment="Center" Text="@SelectedName"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="38"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="21" Brush.FontColor="#D3B46FFF"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="36"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="20" Brush.FontColor="#D3B46FFF"
                             Brush.TextHorizontalAlignment="Center" Text="@SelectedLevel"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="78"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="17" Brush.FontColor="#C7C7C7FF"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="72"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="16" Brush.FontColor="#C7C7C7FF"
                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center"
                             Text="@SelectedRequirements"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="105"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="19" Brush.TextHorizontalAlignment="Center"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="96"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="18" Brush.TextHorizontalAlignment="Center"
                             Brush.TextVerticalAlignment="Center" Text="@SelectedDescription"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="125"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="18" Brush.FontColor="#8FB66BFF"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="116"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="17" Brush.FontColor="#8FB66BFF"
                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center"
                             Text="@SelectedCurrentEffect"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="125"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="18" Brush.FontColor="#D2B36FFF"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="116"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="17" Brush.FontColor="#D2B36FFF"
                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center"
                             Text="@SelectedNextEffect"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="75"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="18" Brush.FontColor="#A8C889FF"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="68"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="17" Brush.FontColor="#A8C889FF"
                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center"
                             Text="@SelectedStatus"/>
-                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="70"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="17" Brush.FontColor="#D2B36FFF"
+                <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="62"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="16" Brush.FontColor="#D2B36FFF"
                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center"
                             Text="@MessageText"/>
               </Children>
