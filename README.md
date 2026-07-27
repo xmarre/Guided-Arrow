@@ -4,18 +4,18 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 ## Current repository snapshot
 
-- Mod version: **1.2.1**
+- Mod version: **1.2.2**
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Progression/MCM source: complete and buildable under `src/GuidedArrow.Progression`
 - Runtime module: ready to install under `module/GuidedArrow`
 
-The pre-existing `GuidedArrow.dll` runtime is the v1.1.17 core binary used by v1.2.1. Its original source was not present in the supplied clean v1.1.17 archive, so this repository does not pretend that decompiled output is original source. The complete source for the v1.2.1 progression/UI sidecar is included.
+The pre-existing `GuidedArrow.dll` runtime is the v1.1.17 core binary used by v1.2.2. Its original source was not present in the supplied clean v1.1.17 archive, so this repository does not pretend that decompiled output is original source. The complete source for the v1.2.2 progression/UI sidecar is included.
 
 ## Repository layout
 
 ```text
-src/GuidedArrow.Progression/     v1.2.1 mastery progression, MCM and UI source
+src/GuidedArrow.Progression/     v1.2.2 mastery progression, MCM and UI source
 src/GuidedArrow.Core/            provenance note for the binary-only core snapshot
 module/GuidedArrow/              installable Bannerlord module tree
 dist/                            clean compiled and source archives
@@ -41,8 +41,10 @@ Delete an older `Modules/GuidedArrow` folder before installing a new build.
 
 The optional skill tree can be opened from:
 
-- the character-development screen using **Guided Arrow Mastery**
+- the character-development screen using the bottom-right **Guided Arrow Mastery** button
 - the campaign map with **Ctrl+U**
+
+`Ctrl+U` is deliberately restricted to the campaign map. Use the button when the character-development screen is open.
 
 Progression can be enabled in MCM under:
 
