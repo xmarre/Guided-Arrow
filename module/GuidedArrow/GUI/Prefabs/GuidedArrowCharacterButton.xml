@@ -1,0 +1,15 @@
+<Prefab>
+  <Window>
+    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" DoNotAcceptEvents="true">
+      <Children>
+        <Standard.Button WidthSizePolicy="Fixed" SuggestedWidth="300"
+                         HeightSizePolicy="Fixed" SuggestedHeight="62"
+                         HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                         MarginLeft="36" MarginBottom="30"
+                         DoNotPassEventsToChildren="true"
+                         Command.Click="ExecuteOpenMastery"
+                         Parameter.Text="@ButtonText"/>
+      </Children>
+    </Widget>
+  </Window>
+</Prefab>
