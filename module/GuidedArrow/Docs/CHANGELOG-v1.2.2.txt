@@ -1,0 +1,16 @@
+GUIDED ARROW v1.2.2
+- Moved the Guided Arrow Mastery button to the bottom-right of the character-development screen.
+- Fixed the overlay input registration so the mastery button is clickable.
+- Closed Bannerlord's native character-development game state before opening mastery.
+- Added a short campaign-map stabilisation delay before the mastery screen opens.
+- Restricted Ctrl+U to the campaign map.
+- Restored the character-screen mastery button after returning from the mastery tree.
+- Restored and SHA-256-locked the exact known-working v1.1.17 GuidedArrow.dll after a recovered-core test build caused an immediate native battle-start crash.
+- Added a sidecar correction around the stable core's penetration continuation instead of rebuilding the core DLL.
+- Spawned synthetic penetration continuations beyond the impacted agent and marked that entity as pass-through.
+- Serialised large split-arrow penetration batches so only one custom continuation is created per mission tick.
+- Rejected null or incomplete reflected continuation results before the stable core can dereference them.
+- Added continuation-worker recovery that preserves untouched queued arrows and repairs invalid tracked, leader and camera references.
+- Preserved every original native/TOR ability projectile and its magic, explosion and perk callbacks.
+- Added the configured Guided Arrow split count on top of native/TOR volleys instead of replacing them.
+- Kept original native ability arrows on TOR/native collision and penetration handling; added followers use Guided Arrow's hardened synthetic path.

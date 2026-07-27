@@ -24,19 +24,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Build and package
+      - name: Build progression sidecar and package stable core
         shell: pwsh
         run: ./build.ps1
 
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.2.1
+          name: GuidedArrow-v1.3.0
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
-            artifacts/build/GuidedArrow.Progression.dll
-            artifacts/build/GuidedArrow.Progression.pdb
+            artifacts/progression-build/GuidedArrow.Progression.dll
+            artifacts/progression-build/GuidedArrow.Progression.pdb
           if-no-files-found: error
           retention-days: 30
 
@@ -58,20 +58,35 @@ jobs:
         shell: pwsh
         run: |
           @'
-          ## Guided Arrow v1.2.1
+          ## Guided Arrow v1.3.0
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Highlights
+          ### Mastery progression overhaul
 
-          - Added the optional Guided Arrow Mastery progression tree with 19 unlockable skills.
-          - Added a separate MCM toggle under **Guided Arrow - Mastery Progression**.
-          - Added direct progression enable/disable controls to the mastery screen.
-          - Added a **Guided Arrow Mastery** button to the native character-development screen.
-          - Retained the **Ctrl+U** campaign-map shortcut.
-          - Fixed startup patching of the inherited `OnAgentHit` callback.
-          - Added explicit progression-state cleanup when leaving a campaign.
-          - Preserved the original v1.1.17 Guided Arrow gameplay runtime byte-identically.
+          - Rebuilt Guided Arrow Mastery as a centre-outward specialization tree.
+          - Raised maximum mastery rank to 99 with one mastery point per rank.
+          - Converted all 19 masteries from binary unlocks to multi-level skills, generally 10–20 levels each.
+          - Added per-level effects, current/next-level details, prerequisite levels and proper specialization pressure.
+          - Added a Bannerlord-scaled XP curve with unique-victim, kill, range and multi-kill rewards capped per shot.
+          - Added a 0.25–3.00 mastery XP multiplier to the separate progression MCM page.
+          - Migrated existing v1 unlocks to level 1 of their corresponding masteries.
+          - Fixed Guided Release's initial four-second guidance cap with a direct real-time timeout.
+
+          ### MCM and runtime safety
+
+          - Removed Harmony getter patches from the normal Guided Arrow MCM settings.
+          - Mastery limits are now applied only while Guided Arrow mission callbacks execute and the original settings are restored immediately afterwards.
+          - Fixed the crash when progression was enabled and the normal Guided Arrow MCM page was opened.
+          - The original Guided Arrow MCM values remain the player's upper limits rather than being rewritten by progression.
+
+          ### Existing v1.2.2 fixes retained
+
+          - Bottom-right character-screen mastery button and safe native-state transition.
+          - Campaign-map-only **Ctrl+U** shortcut.
+          - Stable verified v1.1.17 gameplay core.
+          - Hardened and serialised synthetic penetration continuations.
+          - Additive native/TOR volleys: original ability arrows and effects remain intact while configured Guided Arrow followers are added on top.
 
           ### Installation
 
@@ -85,14 +100,6 @@ jobs:
           - ButterLib
           - UIExtenderEx
           - Mod Configuration Menu v5
-
-          ### Downloads
-
-          - `GuidedArrow-v1.2.1-Bannerlord-1.3.15-to-1.4.7-Universal.zip` — installable module
-          - `GuidedArrow-v1.2.1-SOURCE.zip` — current source and module snapshot
-          - `SHA256SUMS.txt` — integrity hashes for the release files and binaries
-
-          The complete buildable source currently covers the v1.2.1 progression, MCM and UI sidecar. The original v1.1.17 core source was not included in the supplied clean archive, so its verified compiled DLL is preserved unchanged.
           '@ | Set-Content release-notes.md -Encoding UTF8
 
       - name: Publish GitHub release

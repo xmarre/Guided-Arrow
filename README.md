@@ -1,26 +1,29 @@
 # Guided Arrow
 
-Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manually guided projectiles, autonomous guidance, split-arrow behaviour, formations, cinematic camera features and an optional mastery progression tree.
+Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manually guided projectiles, autonomous guidance, split-arrow behaviour, formations, cinematic camera features and an optional mastery progression system.
 
 ## Current repository snapshot
 
-- Mod version: **1.2.1**
+- Mod version: **1.3.0 test branch**
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
-- Progression/MCM source: complete and buildable under `src/GuidedArrow.Progression`
-- Runtime module: ready to install under `module/GuidedArrow`
+- Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
+- Progression/MCM/UI and stable-core sidecar patches: `src/GuidedArrow.Progression`
+- Runtime module: `module/GuidedArrow`
 
-The pre-existing `GuidedArrow.dll` runtime is the v1.1.17 core binary used by v1.2.1. Its original source was not present in the supplied clean v1.1.17 archive, so this repository does not pretend that decompiled output is original source. The complete source for the v1.2.1 progression/UI sidecar is included.
+The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native crash when missions started. The recovered implementation was removed. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
+
+Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
 ## Repository layout
 
 ```text
-src/GuidedArrow.Progression/     v1.2.1 mastery progression, MCM and UI source
-src/GuidedArrow.Core/            provenance note for the binary-only core snapshot
+src/GuidedArrow.Core/            provenance note for the binary-only stable core
+src/GuidedArrow.Progression/     mastery, MCM, UI and narrow stable-core patches
 module/GuidedArrow/              installable Bannerlord module tree
 dist/                            clean compiled and source archives
 checksums/                       SHA-256 manifests
-.github/workflows/build.yml      reproducible build and packaging workflow
+.github/workflows/build.yml      reproducible sidecar build and packaging workflow
 build.ps1                        local Windows build/package script
 ```
 
@@ -39,16 +42,62 @@ Delete an older `Modules/GuidedArrow` folder before installing a new build.
 
 ## Mastery progression
 
-The optional skill tree can be opened from:
+The optional mastery screen can be opened from:
 
-- the character-development screen using **Guided Arrow Mastery**
-- the campaign map with **Ctrl+U**
+- the character-development screen using the bottom-right **Guided Arrow Mastery** button;
+- the campaign map with **Ctrl+U**.
 
-Progression can be enabled in MCM under:
+`Ctrl+U` is deliberately restricted to the campaign map. The character-screen button closes Bannerlord's native character-development state, waits for the map bar to stabilise, and then opens mastery.
 
-`Guided Arrow - Mastery Progression > Progression > Enable Mastery Progression`
+Progression can be enabled in:
 
-It can also be toggled directly from the mastery screen.
+`MCM > Guided Arrow - Mastery Progression > Progression > Enable Mastery Progression`
+
+It can also be toggled directly from the mastery screen. The separate progression MCM contains a **Mastery XP Multiplier** from 0.25 to 3.00.
+
+### Level-99 structure
+
+- Mastery starts at rank 1 and ends at rank 99.
+- Every rank supplies one mastery point, for 99 total points.
+- The tree contains 19 skills, mostly with 10 or 20 levels.
+- Total possible investment is intentionally much larger than 99, forcing specialization rather than allowing one character to maximize everything.
+- Existing v1 binary unlocks migrate to level 1 of their corresponding skills.
+
+### Centre-outward tree
+
+The tree grows from **Guided Release** in the centre:
+
+- **Piercing Doctrine** grows north: controlled penetration.
+- **Hand of the Archer** grows east: guidance duration, turn authority and time control.
+- **Arrow Choir** grows west: native-volley awareness, generated splitting and formations.
+- **Hunter's Mind** grows south: autonomous guidance, reacquisition, navigation and allied takeover.
+- **Convergence** occupies the outer junctions where branches combine.
+
+Each node displays its current level, maximum level, prerequisites, present effect and next-level effect.
+
+### XP balance
+
+Mastery XP is awarded only for unique enemy victims within one guided-shot generation:
+
+- hit: 3 XP;
+- kill: +6 XP;
+- range: up to +4 XP;
+- repeated kills in one shot: a bounded multi-kill bonus;
+- maximum: 32 XP per shot before the MCM multiplier.
+
+The rank curve is quadratic through the main campaign and becomes moderately steeper after rank 50. Rank 99 requires roughly 68,000 mastery XP: long enough to remain meaningful in a Bannerlord campaign, but split volleys and multi-kills prevent the system from requiring Diablo-style enemy density.
+
+### MCM safety
+
+Progression no longer patches the normal Guided Arrow MCM property getters. Mastery limits are applied only while Guided Arrow mission callbacks execute, and every original setting value is restored immediately afterwards. The normal Guided Arrow MCM therefore remains editable and displays the player's actual configured upper limits.
+
+Guided Release rank 1 is enforced by a direct real-time timeout of **4.0 seconds**, bypassing the stable core's internal five-second minimum clamp. Higher Guided Release and Master of the Curve levels extend or eventually release that cap.
+
+## Native/TOR ability volleys
+
+Native/TOR ability arrows are preserved rather than replaced. For example, Waywatcher Lethal Shot keeps all five original magic/explosive arrows. With the Guided Arrow split count set to 30, 30 Guided Arrow followers are added for 35 total projectiles.
+
+Original native arrows remain on TOR/native collision and penetration handling. Added followers use Guided Arrow's hardened synthetic continuation path. Ordinary Guided Arrow split shots do not enter the native-volley augmentation branch.
 
 ## Building
 
@@ -58,8 +107,12 @@ On Windows with the .NET 8 SDK installed:
 ./build.ps1
 ```
 
-The project targets `net472` and restores Bannerlord 1.3.15 reference assemblies from NuGet. The build script compiles the progression DLL, refreshes the module tree, creates compiled/source ZIPs and writes SHA-256 checksums.
+The build script:
 
-## Integrity
+1. verifies the preserved v1.1.17 core DLL against SHA-256 `0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0`;
+2. compiles `GuidedArrow.Progression.dll`;
+3. refreshes the module tree;
+4. creates compiled and source ZIPs;
+5. writes SHA-256 checksums.
 
-The repository build workflow compiles from committed source and publishes both compiled and source artifacts. Release hashes are stored in `checksums/SHA256SUMS.txt`.
+The build fails immediately if the stable core DLL is missing or changed.

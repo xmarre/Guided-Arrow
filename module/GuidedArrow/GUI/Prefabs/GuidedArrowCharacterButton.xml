@@ -4,8 +4,8 @@
       <Children>
         <Standard.Button WidthSizePolicy="Fixed" SuggestedWidth="300"
                          HeightSizePolicy="Fixed" SuggestedHeight="62"
-                         HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                         MarginLeft="36" MarginBottom="30"
+                         HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                         MarginRight="42" MarginBottom="92"
                          DoNotPassEventsToChildren="true"
                          Command.Click="ExecuteOpenMastery"
                          Parameter.Text="@ButtonText"/>
