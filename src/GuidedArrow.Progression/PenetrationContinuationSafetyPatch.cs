@@ -3,8 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using TaleWorlds.Library;
+using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
 {
@@ -20,6 +22,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _impactPositionField;
         private static FieldInfo _impactVelocityField;
         private static FieldInfo _impactDirectionField;
+        private static FieldInfo _victimField;
         private static FieldInfo _trackedMissileNativeMissileField;
         private static FieldInfo _trackedMissileIndexField;
         private static FieldInfo _pendingContinuationSpawnsField;
@@ -27,6 +30,14 @@ namespace GuidedArrow.Progression
         private static FieldInfo _leaderMissileField;
         private static FieldInfo _leaderIndexField;
         private static FieldInfo _cameraMissileIndexField;
+
+        private static readonly ConditionalWeakTable<object, ExitDistanceSnapshot> ExitDistanceSnapshots =
+            new ConditionalWeakTable<object, ExitDistanceSnapshot>();
+
+        private sealed class ExitDistanceSnapshot
+        {
+            internal float DesiredExitDistance;
+        }
 
         private sealed class ContinuationPatchState
         {
@@ -63,6 +74,7 @@ namespace GuidedArrow.Progression
             _impactPositionField = AccessTools.Field(contextType, "ImpactPosition");
             _impactVelocityField = AccessTools.Field(contextType, "ImpactVelocity");
             _impactDirectionField = AccessTools.Field(contextType, "ImpactDirection");
+            _victimField = AccessTools.Field(contextType, "Victim");
             _trackedMissileNativeMissileField = AccessTools.Field(trackedType, "Missile");
             _trackedMissileIndexField = AccessTools.Field(trackedType, "Index");
             _pendingContinuationSpawnsField = AccessTools.Field(behaviorType, "_pendingContinuationSpawns");
@@ -77,6 +89,24 @@ namespace GuidedArrow.Progression
                 _trackedMissileNativeMissileField == null ||
                 _trackedMissileIndexField == null)
                 return;
+
+            MethodInfo queueMethod = AccessTools.Method(
+                behaviorType,
+                "QueuePenetrationContinuation",
+                new[] { trackedType, contextType });
+            MethodInfo capturePrefix = AccessTools.Method(
+                typeof(PenetrationContinuationSafetyPatch),
+                nameof(CaptureExitDistancePrefix));
+            if (queueMethod != null && capturePrefix != null)
+            {
+                try
+                {
+                    harmony.Patch(
+                        queueMethod,
+                        prefix: new HarmonyMethod(capturePrefix) { priority = Priority.First });
+                }
+                catch { }
+            }
 
             try
             {
@@ -105,6 +135,56 @@ namespace GuidedArrow.Progression
             catch
             {
                 // If the worker cannot be patched, the spawn validation still remains active.
+            }
+        }
+
+        private static void CaptureExitDistancePrefix(object[] __args)
+        {
+            if (__args == null || __args.Length < 2 || __args[1] == null) return;
+
+            object context = __args[1];
+            try
+            {
+                Vec3 impactPosition = (Vec3)_impactPositionField.GetValue(context);
+                Vec3 impactVelocity = (Vec3)_impactVelocityField.GetValue(context);
+                Vec3 impactDirection = (Vec3)_impactDirectionField.GetValue(context);
+
+                Vec3 direction = impactVelocity;
+                float speed = direction.Length;
+                if (!IsFinite(speed) || speed <= 0.001f)
+                {
+                    direction = impactDirection;
+                    speed = direction.Length;
+                }
+                if (!IsFinite(speed) || speed <= 0.001f) return;
+
+                direction /= speed;
+                if (!IsFinite(direction)) return;
+
+                float desiredExitDistance = SafeContinuationExitDistance;
+                Agent victim = _victimField?.GetValue(context) as Agent;
+                if (victim != null)
+                {
+                    // This is captured synchronously inside the original collision path, while the
+                    // victim is still a live collision participant. Only the resulting float survives
+                    // into the deferred worker; no Agent or native entity is retained there.
+                    Vec3 victimDelta = victim.Position - impactPosition;
+                    float centreDepth =
+                        victimDelta.x * direction.x +
+                        victimDelta.y * direction.y +
+                        victimDelta.z * direction.z;
+                    if (IsFinite(centreDepth))
+                        desiredExitDistance = Clamp(centreDepth + 0.95f, 1f, 2.5f);
+                }
+
+                ExitDistanceSnapshots.Remove(context);
+                ExitDistanceSnapshots.Add(
+                    context,
+                    new ExitDistanceSnapshot { DesiredExitDistance = desiredExitDistance });
+            }
+            catch
+            {
+                ExitDistanceSnapshots.Remove(context);
             }
         }
 
@@ -144,11 +224,19 @@ namespace GuidedArrow.Progression
                     return false;
                 }
 
-                // The collision victim is intentionally not dereferenced here. This worker executes
-                // on the following mission tick, after the impacted agent may already have lost its
-                // visuals or native body. A fixed total exit distance is deterministic and clears the
-                // ordinary agent capsule without retaining a stale Agent/native-entity dependency.
-                float additionalOffset = Math.Max(0f, SafeContinuationExitDistance - CoreContinuationOffset);
+                float desiredExitDistance = SafeContinuationExitDistance;
+                if (ExitDistanceSnapshots.TryGetValue(context, out ExitDistanceSnapshot snapshot) &&
+                    snapshot != null &&
+                    IsFinite(snapshot.DesiredExitDistance))
+                {
+                    desiredExitDistance = Clamp(snapshot.DesiredExitDistance, 1f, 2.5f);
+                }
+                ExitDistanceSnapshots.Remove(context);
+
+                // The stable core already advances 0.42 m. Apply only the remaining distance. The
+                // distance was captured during the collision callback and is now pure managed data;
+                // this deferred worker never dereferences the old victim or its native presentation.
+                float additionalOffset = Math.Max(0f, desiredExitDistance - CoreContinuationOffset);
                 _impactPositionField.SetValue(context, impactPosition + direction * additionalOffset);
 
                 __state = new ContinuationPatchState
@@ -161,6 +249,7 @@ namespace GuidedArrow.Progression
             }
             catch
             {
+                ExitDistanceSnapshots.Remove(context);
                 // Do not let the uncorrected continuation spawn inside an agent.
                 __state = null;
                 __result = false;
@@ -202,8 +291,8 @@ namespace GuidedArrow.Progression
                 __result = false;
 
             // Do not call AgentVisuals.GetEntity or PassThroughEntity here. The continuation is
-            // already created beyond the victim, while the victim's native presentation may have
-            // been destroyed between the collision callback and this deferred worker.
+            // already created beyond the captured victim depth, while that victim's native
+            // presentation may have been destroyed before this deferred worker runs.
         }
 
         private static void DeferredPrefix(object __instance, out DeferredBatchState __state)
@@ -357,6 +446,11 @@ namespace GuidedArrow.Progression
         private static bool IsFinite(Vec3 value)
         {
             return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+        }
+
+        private static float Clamp(float value, float minimum, float maximum)
+        {
+            return Math.Max(minimum, Math.Min(maximum, value));
         }
     }
 }
