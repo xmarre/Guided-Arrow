@@ -3,6 +3,7 @@
 ## 1.3.0
 
 - Rebuilt Guided Arrow Mastery as a centre-outward specialization tree instead of a left-to-right unlock list.
+- Corrected the vertical branch orientation: Piercing Doctrine now grows north, Hunter's Mind grows south, and the matching Convergence capstones follow those branches.
 - Raised maximum mastery rank to 99 and grants one mastery point per rank.
 - Converted all 19 masteries to multi-level skills, generally with 10 or 20 levels and level-specific bonuses.
 - Added current-level, next-level, prerequisite-level and maximum-level information to every mastery node.
