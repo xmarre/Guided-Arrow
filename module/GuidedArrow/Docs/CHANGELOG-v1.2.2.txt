@@ -7,4 +7,7 @@ GUIDED ARROW v1.2.2
 - Restored the character-screen mastery button after returning from the mastery tree.
 - Restored and SHA-256-locked the exact known-working v1.1.17 GuidedArrow.dll after a recovered-core test build caused an immediate native battle-start crash.
 - Removed the unsafe recovered core implementation and recovery scripts from the maintained source tree.
-- Penetration and TOR native-volley changes are deferred until they can be implemented safely around the stable core runtime.
+- Added a narrow sidecar correction around the stable core's penetration continuation instead of rebuilding the core DLL.
+- Spawned synthetic penetration continuations beyond the impacted agent and marked that entity as pass-through.
+- Invalid continuation vectors or missing stable-core metadata now cancel the continuation safely instead of entering the native tick with an unsafe projectile.
+- TOR native-volley capture changes remain deferred until they can be implemented safely around the stable core runtime.
