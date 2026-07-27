@@ -1,16 +1,16 @@
 name: Bootstrap Guided Arrow v1.2.1 repository
 
 on:
-  push:
+  pull_request:
     branches:
-      - setup/v1.2.1-clean
-  workflow_dispatch:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   bootstrap:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -18,7 +18,7 @@ jobs:
       - name: Check out bootstrap branch
         uses: actions/checkout@v4
         with:
-          ref: setup/v1.2.1-clean
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -126,6 +126,8 @@ jobs:
 
       - name: Commit clean source and compiled outputs
         shell: pwsh
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           $ErrorActionPreference = 'Stop'
           Remove-Item 'bootstrap' -Recurse -Force
@@ -140,4 +142,4 @@ jobs:
           git add -A
           if (git diff --cached --quiet) { throw 'Bootstrap produced no repository changes.' }
           git commit -m 'Add clean Guided Arrow v1.2.1 source and compiled module'
-          git push origin HEAD:setup/v1.2.1-clean
+          git push origin "HEAD:$env:HEAD_BRANCH"
