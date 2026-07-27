@@ -9,7 +9,7 @@
 - Restricted Ctrl+U to the campaign map, preventing the mastery screen from being pushed over character-development or other campaign panels.
 - Restored the character-screen mastery button after returning from the mastery tree.
 - Restored and SHA-256-locked the exact known-working v1.1.17 `GuidedArrow.dll` after a recovered-core test build caused an immediate native mission-start crash.
-- Kept the recovered core project as non-shippable audit/reference material only.
+- Removed the unsafe recovered core implementation and recovery scripts rather than retaining non-authoritative code as a maintenance target.
 - Deferred penetration and TOR native-volley changes until they can be implemented as targeted patches around the stable core and verified separately.
 
 ## 1.2.1
