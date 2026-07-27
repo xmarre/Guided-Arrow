@@ -30,9 +30,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force artifacts/tools, artifacts/decompiled | Out-Null
           dotnet tool install ilspycmd --tool-path artifacts/tools
-          & artifacts/tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll | Set-Content artifacts/decompiled/GuidedArrowBehavior.cs -Encoding UTF8
-          & artifacts/tools/ilspycmd.exe -t GuidedArrow.MissileDamageBridge module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll | Set-Content artifacts/decompiled/MissileDamageBridge.cs -Encoding UTF8
-          & artifacts/tools/ilspycmd.exe -t GuidedArrow.TrackedMissile module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll | Set-Content artifacts/decompiled/TrackedMissile.cs -Encoding UTF8
+          & artifacts/tools/ilspycmd.exe -p -o artifacts/decompiled module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
+          if ($LASTEXITCODE -ne 0) { throw "ilspycmd failed with exit code $LASTEXITCODE" }
+          Get-ChildItem artifacts/decompiled -Recurse -Filter *.cs |
+            Select-String -Pattern 'QueuePenetrationContinuation|TrySpawnPenetrationContinuation|OnMissileCollisionReaction|EnsureStandaloneSplitProjectiles|AcquireSplitShotSiblings|Lethal' |
+            ForEach-Object { "{0}:{1}:{2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() } |
+            Set-Content artifacts/decompiled/PENETRATION_INDEX.txt -Encoding UTF8
 
       - name: Build and package
         shell: pwsh
@@ -47,7 +50,7 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/build/GuidedArrow.Progression.dll
             artifacts/build/GuidedArrow.Progression.pdb
-            artifacts/decompiled/*.cs
+            artifacts/decompiled/**
           if-no-files-found: error
           retention-days: 30
 
