@@ -3,10 +3,12 @@
 ## 1.3.1
 
 - Validates every controlled missile against Bannerlord's live mission registry before guidance, deferred-work and projectile-camera ticks.
-- Removes stale or replaced native missile wrappers through the core's existing cleanup path without calling into expired native handles.
+- Preserves legitimate native wrapper replacement only after the core's existing shooter/entity/item identity refresh confirms the same projectile.
+- Removes registry-missing, identity-mismatched or recycled missile wrappers through the core's existing cleanup path without calling into expired native handles.
 - Prevents recycled missile slots from sending long-running Autoguidance projectiles onto unrelated trajectories.
 - Defers post-penetration target advancement until the continuing projectile exists on a stable subsequent mission/display tick.
 - Prevents collision-time nearby-agent scans, target skeleton/head lookups and route assignment while the impacted missile and victim are undergoing native teardown.
+- Captures the depth-aware continuation exit distance during the original collision callback and carries only that float into deferred creation.
 - Removes deferred reads of the previous victim's position, visuals and native entity when spawning synthetic penetration continuations.
 - Purges removed agents from active targets, planned routes, consumed-target history and shared Autoguidance candidate lists.
 - Repairs leader and camera ownership only from exact live members of the current guided group.
