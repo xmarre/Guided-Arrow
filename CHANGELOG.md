@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.1
+
+- Validates every controlled missile against Bannerlord's live mission registry before guidance, deferred-work and projectile-camera ticks.
+- Removes stale or replaced native missile wrappers without calling into their expired native handles.
+- Prevents recycled missile slots from sending long-running Autoguidance projectiles onto unrelated trajectories.
+- Repairs leader and camera ownership only from exact live members of the current guided group.
+- Preserves intentional camera suspension and return states when no projectile camera owner should exist.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the correction through the maintained v1.3.1 sidecar.
+
 ## 1.3.0
 
 - Rebuilt Guided Arrow Mastery as a centre-outward specialization tree instead of a left-to-right unlock list.
