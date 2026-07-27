@@ -12,10 +12,20 @@ namespace GuidedArrow.Progression
 {
     public sealed class SubModule : MBSubModuleBase
     {
+        private enum CharacterScreenOpenPhase
+        {
+            None,
+            CloseCharacterState,
+            WaitForCampaignMap,
+            SettleCampaignMap
+        }
+
         private Harmony _harmony;
         private bool _openLatch;
         private bool _pendingCharacterScreenOpen;
         private int _pendingCharacterScreenOpenFrames;
+        private int _pendingCharacterScreenOpenTimeoutFrames;
+        private CharacterScreenOpenPhase _characterScreenOpenPhase;
         private readonly CharacterScreenButtonController _characterButton;
 
         public SubModule()
@@ -92,6 +102,8 @@ namespace GuidedArrow.Progression
             _characterButton.Suspend();
             _pendingCharacterScreenOpen = true;
             _pendingCharacterScreenOpenFrames = 1;
+            _pendingCharacterScreenOpenTimeoutFrames = 300;
+            _characterScreenOpenPhase = CharacterScreenOpenPhase.CloseCharacterState;
             _openLatch = false;
         }
 
@@ -99,7 +111,14 @@ namespace GuidedArrow.Progression
         {
             if (!_pendingCharacterScreenOpen) return false;
 
-            if (Campaign.Current == null || Mission.Current != null)
+            if (Campaign.Current == null || Mission.Current != null || Game.Current == null)
+            {
+                CancelPendingCharacterScreenOpen();
+                return false;
+            }
+
+            _pendingCharacterScreenOpenTimeoutFrames--;
+            if (_pendingCharacterScreenOpenTimeoutFrames <= 0)
             {
                 CancelPendingCharacterScreenOpen();
                 return false;
@@ -112,22 +131,74 @@ namespace GuidedArrow.Progression
             }
 
             ScreenBase top = ScreenManager.TopScreen;
-            if (!CharacterScreenButtonController.IsCharacterDeveloperScreen(top))
+            switch (_characterScreenOpenPhase)
             {
-                CancelPendingCharacterScreenOpen();
-                return false;
-            }
+                case CharacterScreenOpenPhase.CloseCharacterState:
+                    if (!CharacterScreenButtonController.IsCharacterDeveloperScreen(top))
+                    {
+                        CancelPendingCharacterScreenOpen();
+                        return false;
+                    }
 
-            _pendingCharacterScreenOpen = false;
-            _pendingCharacterScreenOpenFrames = 0;
-            ScreenManager.PushScreen(new GuidedArrowMasteryScreen());
-            return true;
+                    try
+                    {
+                        // The character-development screen is driven by CharacterDeveloperState.
+                        // Close it through the native game-state stack before opening our own screen.
+                        Game.Current.GameStateManager.PopState();
+                        _characterScreenOpenPhase = CharacterScreenOpenPhase.WaitForCampaignMap;
+                        _pendingCharacterScreenOpenFrames = 1;
+                    }
+                    catch
+                    {
+                        CancelPendingCharacterScreenOpen();
+                        return false;
+                    }
+                    return true;
+
+                case CharacterScreenOpenPhase.WaitForCampaignMap:
+                    if (CharacterScreenButtonController.IsCharacterDeveloperScreen(top))
+                    {
+                        return true;
+                    }
+
+                    if (!IsCampaignMapScreen(top))
+                    {
+                        CancelPendingCharacterScreenOpen();
+                        return false;
+                    }
+
+                    // Give the native map bar and panel-switching layer time to finish
+                    // rebuilding after CharacterDeveloperState is removed.
+                    _characterScreenOpenPhase = CharacterScreenOpenPhase.SettleCampaignMap;
+                    _pendingCharacterScreenOpenFrames = 2;
+                    return true;
+
+                case CharacterScreenOpenPhase.SettleCampaignMap:
+                    if (!IsCampaignMapScreen(top))
+                    {
+                        CancelPendingCharacterScreenOpen();
+                        return false;
+                    }
+
+                    _pendingCharacterScreenOpen = false;
+                    _pendingCharacterScreenOpenFrames = 0;
+                    _pendingCharacterScreenOpenTimeoutFrames = 0;
+                    _characterScreenOpenPhase = CharacterScreenOpenPhase.None;
+                    ScreenManager.PushScreen(new GuidedArrowMasteryScreen());
+                    return true;
+
+                default:
+                    CancelPendingCharacterScreenOpen();
+                    return false;
+            }
         }
 
         private void CancelPendingCharacterScreenOpen()
         {
             _pendingCharacterScreenOpen = false;
             _pendingCharacterScreenOpenFrames = 0;
+            _pendingCharacterScreenOpenTimeoutFrames = 0;
+            _characterScreenOpenPhase = CharacterScreenOpenPhase.None;
             _characterButton.Resume();
         }
 
