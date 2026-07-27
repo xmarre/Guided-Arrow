@@ -5,7 +5,6 @@ using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using TaleWorlds.Library;
-using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
 {
@@ -16,11 +15,11 @@ namespace GuidedArrow.Progression
     internal static class PenetrationContinuationSafetyPatch
     {
         private const float CoreContinuationOffset = 0.42f;
+        private const float SafeContinuationExitDistance = 1.25f;
 
         private static FieldInfo _impactPositionField;
         private static FieldInfo _impactVelocityField;
         private static FieldInfo _impactDirectionField;
-        private static FieldInfo _victimField;
         private static FieldInfo _trackedMissileNativeMissileField;
         private static FieldInfo _trackedMissileIndexField;
         private static FieldInfo _pendingContinuationSpawnsField;
@@ -33,7 +32,6 @@ namespace GuidedArrow.Progression
         {
             internal object Context;
             internal Vec3 OriginalImpactPosition;
-            internal Agent Victim;
             internal bool ImpactPositionAdjusted;
         }
 
@@ -65,7 +63,6 @@ namespace GuidedArrow.Progression
             _impactPositionField = AccessTools.Field(contextType, "ImpactPosition");
             _impactVelocityField = AccessTools.Field(contextType, "ImpactVelocity");
             _impactDirectionField = AccessTools.Field(contextType, "ImpactDirection");
-            _victimField = AccessTools.Field(contextType, "Victim");
             _trackedMissileNativeMissileField = AccessTools.Field(trackedType, "Missile");
             _trackedMissileIndexField = AccessTools.Field(trackedType, "Index");
             _pendingContinuationSpawnsField = AccessTools.Field(behaviorType, "_pendingContinuationSpawns");
@@ -77,7 +74,6 @@ namespace GuidedArrow.Progression
             if (_impactPositionField == null ||
                 _impactVelocityField == null ||
                 _impactDirectionField == null ||
-                _victimField == null ||
                 _trackedMissileNativeMissileField == null ||
                 _trackedMissileIndexField == null)
                 return;
@@ -127,7 +123,6 @@ namespace GuidedArrow.Progression
                 Vec3 impactPosition = (Vec3)_impactPositionField.GetValue(context);
                 Vec3 impactVelocity = (Vec3)_impactVelocityField.GetValue(context);
                 Vec3 impactDirection = (Vec3)_impactDirectionField.GetValue(context);
-                Agent victim = _victimField.GetValue(context) as Agent;
 
                 Vec3 direction = impactVelocity;
                 float speed = direction.Length;
@@ -149,28 +144,17 @@ namespace GuidedArrow.Progression
                     return false;
                 }
 
-                float desiredExitDistance = 1.25f;
-                if (victim != null)
-                {
-                    Vec3 victimDelta = victim.Position - impactPosition;
-                    float centreDepth =
-                        victimDelta.x * direction.x +
-                        victimDelta.y * direction.y +
-                        victimDelta.z * direction.z;
-                    if (IsFinite(centreDepth))
-                        desiredExitDistance = Clamp(centreDepth + 0.95f, 1f, 2.5f);
-                }
-
-                // The stable core already advances 0.42 m. Shift only the remainder,
-                // leaving its existing damage packet and penetration accounting untouched.
-                float additionalOffset = Math.Max(0f, desiredExitDistance - CoreContinuationOffset);
+                // The collision victim is intentionally not dereferenced here. This worker executes
+                // on the following mission tick, after the impacted agent may already have lost its
+                // visuals or native body. A fixed total exit distance is deterministic and clears the
+                // ordinary agent capsule without retaining a stale Agent/native-entity dependency.
+                float additionalOffset = Math.Max(0f, SafeContinuationExitDistance - CoreContinuationOffset);
                 _impactPositionField.SetValue(context, impactPosition + direction * additionalOffset);
 
                 __state = new ContinuationPatchState
                 {
                     Context = context,
                     OriginalImpactPosition = impactPosition,
-                    Victim = victim,
                     ImpactPositionAdjusted = true
                 };
                 return true;
@@ -215,32 +199,11 @@ namespace GuidedArrow.Progression
                 return;
             }
             if (missile == null)
-            {
                 __result = false;
-                return;
-            }
 
-            if (__state?.Victim == null) return;
-
-            try
-            {
-                object visuals = __state.Victim.AgentVisuals;
-                if (visuals == null) return;
-
-                MethodInfo getEntity = AccessTools.Method(visuals.GetType(), "GetEntity");
-                object victimEntity = getEntity?.Invoke(visuals, null);
-                if (victimEntity == null) return;
-
-                MethodInfo passThrough = missile
-                    .GetType()
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .FirstOrDefault(m => m.Name == "PassThroughEntity" && m.GetParameters().Length == 1);
-                passThrough?.Invoke(missile, new[] { victimEntity });
-            }
-            catch
-            {
-                // The continuation already spawned beyond the victim; this is secondary protection.
-            }
+            // Do not call AgentVisuals.GetEntity or PassThroughEntity here. The continuation is
+            // already created beyond the victim, while the victim's native presentation may have
+            // been destroyed between the collision callback and this deferred worker.
         }
 
         private static void DeferredPrefix(object __instance, out DeferredBatchState __state)
@@ -365,6 +328,8 @@ namespace GuidedArrow.Progression
                 if (_cameraMissileIndexField != null)
                 {
                     int cameraIndex = (int)_cameraMissileIndexField.GetValue(instance);
+                    if (cameraIndex < 0) return;
+
                     bool cameraExists = false;
                     for (int i = 0; i < tracked.Count; i++)
                     {
@@ -392,11 +357,6 @@ namespace GuidedArrow.Progression
         private static bool IsFinite(Vec3 value)
         {
             return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
-        }
-
-        private static float Clamp(float value, float minimum, float maximum)
-        {
-            return Math.Max(minimum, Math.Min(maximum, value));
         }
     }
 }
