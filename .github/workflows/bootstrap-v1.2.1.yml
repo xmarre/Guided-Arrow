@@ -129,12 +129,12 @@ jobs:
           Remove-Item '.bootstrap' -Recurse -Force
           Remove-Item 'work' -Recurse -Force
           Remove-Item 'diagnostics' -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item '.github/workflows/bootstrap-v1.2.1.yml' -Force
           Remove-Item 'artifacts' -Recurse -Force -ErrorAction SilentlyContinue
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
+          git status --short
           if (git diff --cached --quiet) { throw 'Bootstrap produced no repository changes.' }
           git commit -m 'Add clean Guided Arrow v1.2.1 source and compiled module'
-          git push origin "HEAD:$env:HEAD_BRANCH"
+          git push --verbose origin "HEAD:$env:HEAD_BRANCH"
