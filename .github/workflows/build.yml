@@ -28,14 +28,7 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
-      - name: Decompile verified core for PR diagnosis
-        if: github.event_name == 'pull_request'
-        shell: pwsh
-        run: |
-          dotnet tool install --global ilspycmd --version 9.1.0.7988
-          ilspycmd -p -o artifacts/core-decompiled module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
-
-      - name: Upload compiled, source and diagnostic artifacts
+      - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
           name: GuidedArrow-v1.3.1
@@ -44,7 +37,6 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/progression-build/GuidedArrow.Progression.dll
             artifacts/progression-build/GuidedArrow.Progression.pdb
-            artifacts/core-decompiled/**
           if-no-files-found: error
           retention-days: 30
 
@@ -70,13 +62,15 @@ jobs:
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Autoguidance lifetime safety
+          ### Autoguidance and penetration stability
 
           - Validates every controlled missile against Bannerlord's live mission registry before guidance and camera ticks.
           - Removes stale or replaced native missile wrappers before the core can read or steer them.
-          - Prevents recycled missile slots from redirecting long-running Autoguidance onto unrelated projectiles.
-          - Repairs leader and camera ownership only from exact live members of the current guided group.
-          - Preserves intentional camera suspension and return states instead of forcing camera ownership back onto a missile.
+          - Defers post-penetration target advancement until the continuing projectile exists on the next stable mission/display tick.
+          - Prevents collision-time nearby-agent scans, skeleton/head lookups and route assignment during native missile teardown.
+          - Removes deferred access to the previous victim's native visuals when spawning synthetic penetration continuations.
+          - Purges removed agents from active, planned and consumed Autoguidance target state.
+          - Preserves intentional camera suspension and return states instead of restoring a stale projectile camera owner.
           - Keeps the verified v1.1.17 gameplay core byte-identical and applies the correction through the maintained sidecar.
 
           ### Installation
