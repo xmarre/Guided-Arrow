@@ -160,17 +160,8 @@ namespace GuidedArrow.Progression
                 Vec3 impactVelocity = (Vec3)__args[4];
                 Vec3 impactDirection = (Vec3)__args[5];
 
-                Vec3 direction = impactVelocity;
-                float speed = direction.Length;
-                if (!IsFinite(speed) || speed <= 0.001f)
-                {
-                    direction = impactDirection;
-                    speed = direction.Length;
-                }
-                if (!IsFinite(speed) || speed <= 0.001f) return;
-
-                direction /= speed;
-                if (!IsFinite(direction)) return;
+                if (!TryComputeNormalizedDirection(impactVelocity, impactDirection, out Vec3 direction))
+                    return;
 
                 float desiredExitDistance = SafeContinuationExitDistance;
                 if (victim != null)
@@ -211,21 +202,7 @@ namespace GuidedArrow.Progression
                 Vec3 impactVelocity = (Vec3)_impactVelocityField.GetValue(context);
                 Vec3 impactDirection = (Vec3)_impactDirectionField.GetValue(context);
 
-                Vec3 direction = impactVelocity;
-                float speed = direction.Length;
-                if (!IsFinite(speed) || speed <= 0.001f)
-                {
-                    direction = impactDirection;
-                    speed = direction.Length;
-                }
-                if (!IsFinite(speed) || speed <= 0.001f)
-                {
-                    __result = false;
-                    return false;
-                }
-
-                direction /= speed;
-                if (!IsFinite(direction))
+                if (!TryComputeNormalizedDirection(impactVelocity, impactDirection, out Vec3 direction))
                 {
                     __result = false;
                     return false;
@@ -443,6 +420,25 @@ namespace GuidedArrow.Progression
             {
                 // The stable core retains control if a future version changes these fields.
             }
+        }
+
+        private static bool TryComputeNormalizedDirection(
+            Vec3 impactVelocity,
+            Vec3 impactDirection,
+            out Vec3 direction)
+        {
+            direction = impactVelocity;
+            float speed = direction.Length;
+            if (!IsFinite(speed) || speed <= 0.001f)
+            {
+                direction = impactDirection;
+                speed = direction.Length;
+            }
+            if (!IsFinite(speed) || speed <= 0.001f)
+                return false;
+
+            direction /= speed;
+            return IsFinite(direction);
         }
 
         private static bool IsFinite(float value)
