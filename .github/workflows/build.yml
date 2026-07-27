@@ -70,7 +70,13 @@ jobs:
           - Waited for the campaign map and map bar to stabilise before pushing the mastery screen.
           - Restricted **Ctrl+U** to the campaign map.
           - Restored the character-screen button after returning from mastery.
-          - Restored the exact verified v1.1.17 core runtime after the recovered-core test build caused a native mission-start crash.
+          - Restored and SHA-256-locked the exact verified v1.1.17 core runtime.
+          - Moved synthetic penetration continuations beyond the impacted agent and marked that entity as pass-through.
+          - Serialised large split-arrow penetration batches to one continuation per mission tick.
+          - Rejected null or incomplete continuation results and repaired invalid tracked/camera state after a continuation failure.
+          - Made the standalone split count authoritative for native/TOR player volleys such as Waywatcher Lethal Shot.
+          - Kept one native ability arrow as the weapon and damage source, removed the extra native siblings, and generated the configured total through Guided Arrow's standalone splitter.
+          - Preserved native/TOR volley behaviour when the standalone override is disabled or set to one projectile.
 
           ### Installation
 
@@ -84,8 +90,6 @@ jobs:
           - ButterLib
           - UIExtenderEx
           - Mod Configuration Menu v5
-
-          Penetration and TOR native-volley changes are not included in this stable-core recovery build. They require a separate targeted patch and in-game verification.
           '@ | Set-Content release-notes.md -Encoding UTF8
 
       - name: Publish GitHub release
