@@ -109,6 +109,7 @@ namespace GuidedArrow.Progression
             PatchBoolResult(harmony, behaviorType, "ShouldBreakFormationForAutoguidance", nameof(BreakFormationPostfix));
             PatchBoolResult(harmony, behaviorType, "IsAgentPenetrationOverrideEnabled", nameof(PenetrationEnabledPostfix));
             PatchBoolResult(harmony, behaviorType, "IsAutoguidanceEligibleMissile", nameof(AutoguidanceEligiblePostfix));
+            PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
         }
 
         private static void PatchBoolResult(Harmony harmony, Type type, string methodName, string postfixName)
