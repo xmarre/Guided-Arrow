@@ -19,21 +19,40 @@ namespace GuidedArrow.Progression
             Refresh();
         }
 
-        [DataSourceProperty] public string ButtonText { get => _buttonText; set { if (value != _buttonText) { _buttonText = value; OnPropertyChangedWithValue(value, nameof(ButtonText)); } } }
-        [DataSourceProperty] public bool IsSelected { get => _isSelected; set { if (value != _isSelected) { _isSelected = value; OnPropertyChangedWithValue(value, nameof(IsSelected)); } } }
-        [DataSourceProperty] public string Name => Definition.Name;
-        [DataSourceProperty] public string Glyph => Definition.Glyph;
+        [DataSourceProperty]
+        public string ButtonText
+        {
+            get => _buttonText;
+            set
+            {
+                if (value == _buttonText) return;
+                _buttonText = value;
+                OnPropertyChangedWithValue(value, nameof(ButtonText));
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (value == _isSelected) return;
+                _isSelected = value;
+                OnPropertyChangedWithValue(value, nameof(IsSelected));
+            }
+        }
 
         public void ExecuteSelect() => _owner.Select(Definition.Id);
 
         internal void Refresh()
         {
-            ProgressionCampaignBehavior p = ProgressionService.Current;
-            bool unlocked = p != null && p.HasPurchased(Definition.Id);
+            ProgressionCampaignBehavior progression = ProgressionService.Current;
+            int level = progression != null ? progression.GetSkillLevel(Definition.Id) : 0;
             string reason;
-            bool ready = p != null && p.CanPurchase(Definition.Id, out reason);
-            string state = unlocked ? "UNLOCKED" : (ready ? "AVAILABLE" : "LOCKED");
-            ButtonText = Definition.Glyph + "\n" + Definition.Name + "\n" + state;
+            bool ready = progression != null && progression.CanInvest(Definition.Id, out reason);
+            string state = level >= Definition.MaxLevel ? "MAX" : (ready ? "READY" : (level > 0 ? "ACTIVE" : "LOCKED"));
+            ButtonText = Definition.Glyph + "  " + Definition.Name + "\n" + level + " / " + Definition.MaxLevel + "  •  " + state;
         }
     }
 
@@ -42,18 +61,34 @@ namespace GuidedArrow.Progression
         private readonly Action _close;
         private readonly List<SkillNodeVM> _allNodes = new List<SkillNodeVM>();
         private SkillId _selectedId = SkillId.GuidedRelease;
-        private string _masteryText, _xpText, _pointsText, _rangedText, _selectedName, _selectedCost, _selectedRequirements, _selectedDescription, _selectedStatus, _progressionText, _progressionActionText, _messageText;
+
+        private string _masteryText;
+        private string _xpText;
+        private string _pointsText;
+        private string _rangedText;
+        private string _selectedName;
+        private string _selectedLevel;
+        private string _selectedRequirements;
+        private string _selectedDescription;
+        private string _selectedCurrentEffect;
+        private string _selectedNextEffect;
+        private string _selectedStatus;
+        private string _progressionText;
+        private string _progressionActionText;
+        private string _messageText;
         private int _xpProgress;
 
         internal GuidedArrowMasteryVM(Action close)
         {
             _close = close;
+            CoreNodes = Make("Core");
             HandNodes = Make("Hand of the Archer");
             HunterNodes = Make("Hunter's Mind");
             ChoirNodes = Make("Arrow Choir");
             PiercingNodes = Make("Piercing Doctrine");
-            ConvergenceNodes = Make("Convergence");
-            CoreNodes = Make("Core");
+            SynchronizedNodes = MakeSingle(SkillId.SynchronizedHunt);
+            NeedleNodes = MakeSingle(SkillId.NeedleStorm);
+
             ProgressionService.Changed += RefreshAll;
             RefreshAll();
             Select(SkillId.GuidedRelease);
@@ -65,7 +100,8 @@ namespace GuidedArrow.Progression
         [DataSourceProperty] public MBBindingList<SkillNodeVM> HunterNodes { get; }
         [DataSourceProperty] public MBBindingList<SkillNodeVM> ChoirNodes { get; }
         [DataSourceProperty] public MBBindingList<SkillNodeVM> PiercingNodes { get; }
-        [DataSourceProperty] public MBBindingList<SkillNodeVM> ConvergenceNodes { get; }
+        [DataSourceProperty] public MBBindingList<SkillNodeVM> SynchronizedNodes { get; }
+        [DataSourceProperty] public MBBindingList<SkillNodeVM> NeedleNodes { get; }
 
         [DataSourceProperty] public string MasteryText { get => _masteryText; set => Set(ref _masteryText, value, nameof(MasteryText)); }
         [DataSourceProperty] public string XpText { get => _xpText; set => Set(ref _xpText, value, nameof(XpText)); }
@@ -73,9 +109,11 @@ namespace GuidedArrow.Progression
         [DataSourceProperty] public string RangedText { get => _rangedText; set => Set(ref _rangedText, value, nameof(RangedText)); }
         [DataSourceProperty] public int XpProgress { get => _xpProgress; set { if (value != _xpProgress) { _xpProgress = value; OnPropertyChangedWithValue(value, nameof(XpProgress)); } } }
         [DataSourceProperty] public string SelectedName { get => _selectedName; set => Set(ref _selectedName, value, nameof(SelectedName)); }
-        [DataSourceProperty] public string SelectedCost { get => _selectedCost; set => Set(ref _selectedCost, value, nameof(SelectedCost)); }
+        [DataSourceProperty] public string SelectedLevel { get => _selectedLevel; set => Set(ref _selectedLevel, value, nameof(SelectedLevel)); }
         [DataSourceProperty] public string SelectedRequirements { get => _selectedRequirements; set => Set(ref _selectedRequirements, value, nameof(SelectedRequirements)); }
         [DataSourceProperty] public string SelectedDescription { get => _selectedDescription; set => Set(ref _selectedDescription, value, nameof(SelectedDescription)); }
+        [DataSourceProperty] public string SelectedCurrentEffect { get => _selectedCurrentEffect; set => Set(ref _selectedCurrentEffect, value, nameof(SelectedCurrentEffect)); }
+        [DataSourceProperty] public string SelectedNextEffect { get => _selectedNextEffect; set => Set(ref _selectedNextEffect, value, nameof(SelectedNextEffect)); }
         [DataSourceProperty] public string SelectedStatus { get => _selectedStatus; set => Set(ref _selectedStatus, value, nameof(SelectedStatus)); }
         [DataSourceProperty] public string ProgressionText { get => _progressionText; set => Set(ref _progressionText, value, nameof(ProgressionText)); }
         [DataSourceProperty] public string ProgressionActionText { get => _progressionActionText; set => Set(ref _progressionActionText, value, nameof(ProgressionActionText)); }
@@ -83,29 +121,37 @@ namespace GuidedArrow.Progression
 
         public void ExecuteConfirm()
         {
-            ProgressionCampaignBehavior p = ProgressionService.Current;
-            if (p == null) { MessageText = "Campaign progression is unavailable."; return; }
+            ProgressionCampaignBehavior progression = ProgressionService.Current;
+            if (progression == null)
+            {
+                MessageText = "Campaign progression is unavailable.";
+                return;
+            }
+
             string reason;
-            if (p.Purchase(_selectedId, out reason)) MessageText = reason;
-            else MessageText = reason;
+            progression.Invest(_selectedId, out reason);
+            MessageText = reason;
             RefreshAll();
         }
 
         public void ExecuteRespec()
         {
-            ProgressionCampaignBehavior p = ProgressionService.Current;
-            if (p == null) return;
-            p.Respec();
-            MessageText = "All mastery points refunded.";
+            ProgressionCampaignBehavior progression = ProgressionService.Current;
+            if (progression == null) return;
+            progression.Respec();
+            MessageText = "All invested mastery points were refunded.";
             RefreshAll();
         }
 
         public void ExecuteToggleProgression()
         {
-            ProgressionCampaignBehavior p = ProgressionService.Current;
-            if (p == null) return;
-            ProgressionService.SetEnabledFromUi(!p.Enabled);
-            MessageText = p.Enabled ? "Progression enabled. Existing MCM values are now capped by unlocked skills." : "Progression disabled. Full configured Guided Arrow behaviour restored.";
+            ProgressionCampaignBehavior progression = ProgressionService.Current;
+            if (progression == null) return;
+            bool enable = !progression.Enabled;
+            ProgressionService.SetEnabledFromUi(enable);
+            MessageText = enable
+                ? "Progression enabled. Guided Arrow now uses the invested mastery ranks as runtime limits."
+                : "Progression disabled. The original Guided Arrow MCM values are unrestricted.";
             RefreshAll();
         }
 
@@ -120,25 +166,37 @@ namespace GuidedArrow.Progression
 
         internal void RefreshAll()
         {
-            ProgressionCampaignBehavior p = ProgressionService.Current;
-            if (p == null)
+            ProgressionCampaignBehavior progression = ProgressionService.Current;
+            if (progression == null)
             {
-                MasteryText = "Mastery Rank 0"; XpText = "XP 0 / 50"; PointsText = "Points Available: 0"; RangedText = "Ranged Skill: 0"; XpProgress = 0; ProgressionText = "Progression: Unavailable"; ProgressionActionText = "Enable Progression";
+                MasteryText = "Mastery Rank 1 / 99";
+                XpText = "XP 0 / " + SkillCatalog.GetNextThreshold(1);
+                PointsText = "Points Available: 0";
+                RangedText = "Ranged Skill: 0";
+                XpProgress = 0;
+                ProgressionText = "Progression: Unavailable";
+                ProgressionActionText = "Enable Progression";
             }
             else
             {
-                int rank = p.Rank;
-                int currentThreshold = SkillCatalog.RankThresholds[Math.Min(rank, SkillCatalog.RankThresholds.Length - 1)];
+                int rank = progression.Rank;
+                int currentThreshold = SkillCatalog.GetThreshold(rank);
                 int nextThreshold = SkillCatalog.GetNextThreshold(rank);
                 int width = Math.Max(1, nextThreshold - currentThreshold);
-                MasteryText = "Mastery Rank " + rank;
-                XpText = "XP " + p.Xp + " / " + nextThreshold;
-                PointsText = "Points Available: " + p.AvailablePoints;
-                RangedText = "Ranged Skill: " + p.RangedSkill;
-                XpProgress = rank >= 15 ? 100 : Math.Max(0, Math.Min(100, (p.Xp - currentThreshold) * 100 / width));
-                ProgressionText = p.Enabled ? "Progression: ENABLED" : "Progression: DISABLED";
-                ProgressionActionText = p.Enabled ? "Disable Progression" : "Enable Progression";
+
+                MasteryText = "Mastery Rank " + rank + " / 99";
+                XpText = rank >= ProgressionBalance.MaximumMasteryRank
+                    ? "XP " + progression.Xp + " • MAXIMUM RANK"
+                    : "XP " + progression.Xp + " / " + nextThreshold;
+                PointsText = "Points Available: " + progression.AvailablePoints + "  •  Invested: " + progression.InvestedPoints;
+                RangedText = "Ranged Skill: " + progression.RangedSkill;
+                XpProgress = rank >= ProgressionBalance.MaximumMasteryRank
+                    ? 100
+                    : Math.Max(0, Math.Min(100, (progression.Xp - currentThreshold) * 100 / width));
+                ProgressionText = progression.Enabled ? "Progression: ENABLED" : "Progression: DISABLED";
+                ProgressionActionText = progression.Enabled ? "Disable Progression" : "Enable Progression";
             }
+
             foreach (SkillNodeVM node in _allNodes) node.Refresh();
             RefreshSelected();
         }
@@ -152,33 +210,63 @@ namespace GuidedArrow.Progression
         private MBBindingList<SkillNodeVM> Make(string branch)
         {
             MBBindingList<SkillNodeVM> list = new MBBindingList<SkillNodeVM>();
-            foreach (SkillDefinition definition in SkillCatalog.All.Where(x => x.Branch == branch))
-            {
-                SkillNodeVM vm = new SkillNodeVM(this, definition);
-                list.Add(vm); _allNodes.Add(vm);
-            }
+            foreach (SkillDefinition definition in SkillCatalog.All.Where(skill => skill.Branch == branch).OrderBy(skill => skill.TreeOrder))
+                Add(list, definition);
             return list;
+        }
+
+        private MBBindingList<SkillNodeVM> MakeSingle(SkillId id)
+        {
+            MBBindingList<SkillNodeVM> list = new MBBindingList<SkillNodeVM>();
+            Add(list, SkillCatalog.ById[id]);
+            return list;
+        }
+
+        private void Add(MBBindingList<SkillNodeVM> list, SkillDefinition definition)
+        {
+            SkillNodeVM node = new SkillNodeVM(this, definition);
+            list.Add(node);
+            _allNodes.Add(node);
         }
 
         private void RefreshSelected()
         {
             SkillDefinition skill = SkillCatalog.ById[_selectedId];
-            ProgressionCampaignBehavior p = ProgressionService.Current;
+            ProgressionCampaignBehavior progression = ProgressionService.Current;
+            int level = progression != null ? progression.GetSkillLevel(skill.Id) : 0;
+
             SelectedName = skill.Glyph + "  " + skill.Name;
-            SelectedCost = "Cost: " + skill.Cost + " Point" + (skill.Cost == 1 ? string.Empty : "s");
-            string prerequisites = skill.Prerequisites.Length == 0 ? "" : " • " + string.Join(" • ", skill.Prerequisites.Select(x => SkillCatalog.ById[x].Name));
-            SelectedRequirements = "Mastery " + skill.MasteryRank + " • Ranged Skill " + skill.RangedSkill + prerequisites;
+            SelectedLevel = "Level " + level + " / " + skill.MaxLevel + "  •  1 point per level";
+            SelectedRequirements = SkillCatalog.GetRequirementText(skill);
             SelectedDescription = skill.Description;
-            if (p == null) SelectedStatus = "Unavailable";
-            else if (!p.Enabled) SelectedStatus = "Progression disabled — configured feature is unrestricted.";
-            else if (p.HasPurchased(skill.Id)) SelectedStatus = "Unlocked • Branch: " + skill.Branch;
-            else { string reason; p.CanPurchase(skill.Id, out reason); SelectedStatus = reason + " • Branch: " + skill.Branch; }
+            SelectedCurrentEffect = "CURRENT\n" + SkillCatalog.GetEffectText(skill.Id, level);
+            SelectedNextEffect = "NEXT\n" + SkillCatalog.GetNextLevelText(skill, level);
+
+            if (progression == null)
+            {
+                SelectedStatus = "Campaign progression is unavailable.";
+            }
+            else if (!progression.Enabled)
+            {
+                SelectedStatus = "Progression disabled — the original MCM configuration is unrestricted.";
+            }
+            else if (level >= skill.MaxLevel)
+            {
+                SelectedStatus = "Maximum level reached • " + skill.Branch;
+            }
+            else
+            {
+                string reason;
+                progression.CanInvest(skill.Id, out reason);
+                SelectedStatus = reason + " • " + skill.Branch;
+            }
         }
 
         private void Set(ref string field, string value, string name)
         {
             if (field == value) return;
-            field = value; OnPropertyChangedWithValue(value, name);
+            field = value;
+            OnPropertyChangedWithValue(value, name);
         }
     }
 }
