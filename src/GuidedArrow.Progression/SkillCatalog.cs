@@ -74,7 +74,7 @@ namespace GuidedArrow.Progression
 
         internal static float SpeedAdaptiveSteeringCap(int fineCorrection, int masterOfCurve)
         {
-            return Math.Min(2f, 0.05f * Math.Max(0, fineCorrection) + 0.05f * Math.Max(0, masterOfCurve));
+            return Math.Min(2f, 0.05f * Math.Max(0, fineCorrection) + 0.1f * Math.Max(0, masterOfCurve));
         }
 
         internal static int PlannedTargetCap(int predatorsEye, int relentlessLock, int unblinkingEye, int synchronizedHunt)
@@ -89,7 +89,7 @@ namespace GuidedArrow.Progression
 
         internal static float ObstacleScanIntervalFloor(int pathfinder)
         {
-            return Math.Max(0.05f, 0.32f - 0.012f * Math.Max(0, pathfinder));
+            return Math.Max(0.05f, 0.32f - 0.0135f * Math.Max(0, pathfinder));
         }
 
         internal static int FlightProfileMaximumIndex(int pathfinder)
@@ -129,7 +129,7 @@ namespace GuidedArrow.Progression
 
         internal static float FormationResponseCap(int formationDiscipline)
         {
-            return 2f + 0.6f * Math.Max(0, formationDiscipline);
+            return Math.Min(20f, 2f + 1.8f * Math.Max(0, formationDiscipline));
         }
 
         internal static float FormationCatchUpCap(int formationDiscipline)
@@ -149,7 +149,7 @@ namespace GuidedArrow.Progression
         internal static int SynchronizedProjectileCap(int synchronizedHunt)
         {
             if (synchronizedHunt <= 0) return 1;
-            return Math.Min(64, 1 + 3 * synchronizedHunt);
+            return Math.Min(64, 1 + 7 * synchronizedHunt);
         }
 
         internal static int NeedleStormPenetrationCap(int needleStorm)
@@ -203,7 +203,7 @@ namespace GuidedArrow.Progression
                 "Adds two penetration allowance per rank. Rank 10 permits the configured infinite-penetration option.", R(SkillId.ThroughTheRanks, 10)),
 
             D(SkillId.SynchronizedHunt, "Synchronized Hunt", "Convergence", "⤨", "synchronized_hunt", 10, 55, 200, 1,
-                "Combines Hunter's Mind with the Arrow Choir. Each rank allows three more split projectiles to use autonomous guidance.", R(SkillId.PredatorsEye, 10), R(SkillId.FormationDiscipline, 5)),
+                "Combines Hunter's Mind with the Arrow Choir. Each rank allows seven more split projectiles to use autonomous guidance, reaching a full 64-projectile group at maximum level.", R(SkillId.PredatorsEye, 10), R(SkillId.FormationDiscipline, 5)),
             D(SkillId.NeedleStorm, "Needle Storm", "Convergence", "✺", "needle_storm", 10, 55, 200, 2,
                 "Combines splitting with the Piercing Doctrine. Generated followers gain one penetration at rank 1 and up to five at rank 9.", R(SkillId.ForkedShaft, 10), R(SkillId.ThroughTheRanks, 10))
         };
@@ -282,7 +282,7 @@ namespace GuidedArrow.Progression
                 case SkillId.MasterOfTheCurve:
                     return level >= 10
                         ? "Maximum mastery: configured guidance duration is unrestricted; turn radius may reach the 3 m engine-safe floor."
-                        : "+" + F(1.2f * level, 1) + " s guidance cap, -" + F(0.6f * level, 1) + " m turn-radius floor and -" + F(0.03f * level, 2) + " time-speed floor.";
+                        : "+" + F(1.2f * level, 1) + " s guidance cap, -" + F(0.6f * level, 1) + " m turn-radius floor, +" + F(0.1f * level, 2) + " adaptive steering cap and -" + F(0.03f * level, 2) + " time-speed floor.";
                 case SkillId.PredatorsEye:
                     return level <= 0 ? "Rank 1 unlocks autonomous guidance." : "Autonomous guidance active. Predator route contribution: " + (1 + level / 5) + " target slots.";
                 case SkillId.RelentlessLock:
