@@ -31,7 +31,7 @@ jobs:
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.3.0
+          name: GuidedArrow-v1.3.1
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
@@ -58,35 +58,18 @@ jobs:
         shell: pwsh
         run: |
           @'
-          ## Guided Arrow v1.3.0
+          ## Guided Arrow v1.3.1
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Mastery progression overhaul
+          ### Autoguidance lifetime safety
 
-          - Rebuilt Guided Arrow Mastery as a centre-outward specialization tree.
-          - Raised maximum mastery rank to 99 with one mastery point per rank.
-          - Converted all 19 masteries from binary unlocks to multi-level skills, generally 10–20 levels each.
-          - Added per-level effects, current/next-level details, prerequisite levels and proper specialization pressure.
-          - Added a Bannerlord-scaled XP curve with unique-victim, kill, range and multi-kill rewards capped per shot.
-          - Added a 0.25–3.00 mastery XP multiplier to the separate progression MCM page.
-          - Migrated existing v1 unlocks to level 1 of their corresponding masteries.
-          - Fixed Guided Release's initial four-second guidance cap with a direct real-time timeout.
-
-          ### MCM and runtime safety
-
-          - Removed Harmony getter patches from the normal Guided Arrow MCM settings.
-          - Mastery limits are now applied only while Guided Arrow mission callbacks execute and the original settings are restored immediately afterwards.
-          - Fixed the crash when progression was enabled and the normal Guided Arrow MCM page was opened.
-          - The original Guided Arrow MCM values remain the player's upper limits rather than being rewritten by progression.
-
-          ### Existing v1.2.2 fixes retained
-
-          - Bottom-right character-screen mastery button and safe native-state transition.
-          - Campaign-map-only **Ctrl+U** shortcut.
-          - Stable verified v1.1.17 gameplay core.
-          - Hardened and serialised synthetic penetration continuations.
-          - Additive native/TOR volleys: original ability arrows and effects remain intact while configured Guided Arrow followers are added on top.
+          - Validates every controlled missile against Bannerlord's live mission registry before guidance and camera ticks.
+          - Removes stale or replaced native missile wrappers before the core can read or steer them.
+          - Prevents recycled missile slots from redirecting long-running Autoguidance onto unrelated projectiles.
+          - Repairs leader and camera ownership only from exact live members of the current guided group.
+          - Preserves intentional camera suspension and return states instead of forcing camera ownership back onto a missile.
+          - Keeps the verified v1.1.17 gameplay core byte-identical and applies the correction through the maintained sidecar.
 
           ### Installation
 
