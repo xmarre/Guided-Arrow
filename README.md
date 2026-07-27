@@ -67,10 +67,10 @@ It can also be toggled directly from the mastery screen. The separate progressio
 
 The tree grows from **Guided Release** in the centre:
 
-- **Hunter's Mind** grows north: autonomous guidance, reacquisition, navigation and allied takeover.
+- **Piercing Doctrine** grows north: controlled penetration.
 - **Hand of the Archer** grows east: guidance duration, turn authority and time control.
 - **Arrow Choir** grows west: native-volley awareness, generated splitting and formations.
-- **Piercing Doctrine** grows south: controlled penetration.
+- **Hunter's Mind** grows south: autonomous guidance, reacquisition, navigation and allied takeover.
 - **Convergence** occupies the outer junctions where branches combine.
 
 Each node displays its current level, maximum level, prerequisites, present effect and next-level effect.
