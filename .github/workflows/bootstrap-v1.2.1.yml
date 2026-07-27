@@ -131,6 +131,10 @@ jobs:
           Remove-Item 'diagnostics' -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item 'artifacts' -Recurse -Force -ErrorAction SilentlyContinue
 
+          # The scoped Actions token cannot add a new workflow file. The connected
+          # GitHub app adds the verified permanent workflow after this commit lands.
+          Remove-Item '.github/workflows/build.yml' -Force
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
