@@ -128,6 +128,21 @@ namespace GuidedArrow.Progression
                 }
                 catch { }
             }
+
+            MethodInfo ensureStandaloneMethod = AccessTools.Method(behaviorType, "EnsureStandaloneSplitProjectiles");
+            if (ensureStandaloneMethod != null)
+            {
+                try
+                {
+                    HarmonyMethod prefix = new HarmonyMethod(
+                        AccessTools.Method(typeof(NativeVolleyOverridePatch), nameof(EnsureStandalonePrefix)))
+                    {
+                        priority = Priority.First
+                    };
+                    harmony.Patch(ensureStandaloneMethod, prefix: prefix);
+                }
+                catch { }
+            }
         }
 
         private static bool ShootPrefix(object __instance, object[] __args)
@@ -161,18 +176,32 @@ namespace GuidedArrow.Progression
 
         private static void MissionTickPrefix(object __instance)
         {
-            if (__instance == null || !IsOverrideActive()) return;
+            TryReplaceNativeVolley(__instance);
+        }
+
+        private static void EnsureStandalonePrefix(object __instance)
+        {
+            // This prefix runs at the exact point where the stable core would otherwise
+            // skip standalone generation because it has just discovered a TOR/native batch.
+            // It avoids waiting for a later mission tick and prevents the five native
+            // projectiles from reaching collision handling.
+            TryReplaceNativeVolley(__instance);
+        }
+
+        private static bool TryReplaceNativeVolley(object __instance)
+        {
+            if (__instance == null || !IsOverrideActive()) return false;
 
             IList tracked = GetTracked(__instance);
-            if (tracked == null || tracked.Count == 0) return;
+            if (tracked == null || tracked.Count == 0) return false;
 
             Agent activeShooter;
             try { activeShooter = _activeShotShooterField.GetValue(__instance) as Agent; }
-            catch { return; }
-            if (activeShooter == null || (Agent.Main != null && activeShooter != Agent.Main)) return;
+            catch { return false; }
+            if (activeShooter == null || (Agent.Main != null && activeShooter != Agent.Main)) return false;
 
             object leader = SelectLeader(__instance, tracked);
-            if (leader == null) return;
+            if (leader == null) return false;
 
             List<object> nativeExtras = new List<object>();
             for (int i = 0; i < tracked.Count; i++)
@@ -183,20 +212,18 @@ namespace GuidedArrow.Progression
                 nativeExtras.Add(item);
             }
 
-            // TOR siblings are normally discovered by Guided Arrow during the first
-            // original OnMissionTick, after this prefix has already run. That first tick
-            // marks standalone splitting as handled because a native batch exists. On the
-            // following tick we must still replace the now-visible native extras instead
-            // of returning merely because _standaloneSplitSpawned is already true.
             RemoveQueuedNativeMissiles(__instance, nativeExtras);
-            if (nativeExtras.Count == 0) return;
+            if (nativeExtras.Count == 0) return false;
 
-            // Remove stale tracked wrappers after their native missiles have been removed.
+            // TOR siblings may be discovered during the first original OnMissionTick, after
+            // the outer tick prefix has already run. Running this same conversion directly
+            // before EnsureStandaloneSplitProjectiles makes the override authoritative in
+            // that very tick instead of allowing the native batch to become permanent.
             try { _pruneInvalidTrackedMissilesMethod?.Invoke(__instance, null); }
             catch { }
 
             tracked = GetTracked(__instance);
-            if (tracked == null) return;
+            if (tracked == null) return false;
             for (int i = tracked.Count - 1; i >= 0; i--)
             {
                 object item = tracked[i];
@@ -204,10 +231,8 @@ namespace GuidedArrow.Progression
                     tracked.RemoveAt(i);
             }
 
-            // Make the configured standalone count authoritative even when the previous
-            // tick already set _standaloneSplitSpawned while skipping a detected TOR batch.
-            // The original core now sees one valid leader, a closed acquisition window and
-            // no native-batch flag, so EnsureStandaloneSplitProjectiles creates count - 1.
+            // The previous core path may already have marked standalone splitting as handled
+            // when it saw the native batch. Reset both decisions after removing the siblings.
             SetBool(_nativeSplitBatchDetectedField, __instance, false);
             SetBool(_standaloneSplitSpawnedField, __instance, false);
             SetBool(_splitSiblingAcquisitionClosedField, __instance, true);
@@ -225,6 +250,8 @@ namespace GuidedArrow.Progression
                 _cameraMissileIndexField?.SetValue(__instance, leaderIndex);
             }
             catch { }
+
+            return true;
         }
 
         private static object SelectLeader(object instance, IList tracked)
