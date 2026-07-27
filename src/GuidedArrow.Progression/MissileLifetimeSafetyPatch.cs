@@ -27,6 +27,8 @@ namespace GuidedArrow.Progression
         private static FieldInfo _leaderMissileField;
         private static FieldInfo _leaderIndexField;
         private static FieldInfo _cameraMissileIndexField;
+        private static MethodInfo _abandonNativePresentationHandlesMethod;
+        private static MethodInfo _removeTrackedMissileMethod;
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
@@ -43,6 +45,14 @@ namespace GuidedArrow.Progression
             _leaderMissileField = AccessTools.Field(behaviorType, "_missile");
             _leaderIndexField = AccessTools.Field(behaviorType, "_missileIndex");
             _cameraMissileIndexField = AccessTools.Field(behaviorType, "_cameraMissileIndex");
+            _abandonNativePresentationHandlesMethod = AccessTools.Method(
+                behaviorType,
+                "AbandonNativePresentationHandlesAfterImpact",
+                new[] { trackedType });
+            _removeTrackedMissileMethod = AccessTools.Method(
+                behaviorType,
+                "RemoveTrackedMissile",
+                new[] { trackedType, typeof(bool) });
 
             if (_missionMissilesDictionaryField == null ||
                 _trackedMissilesField == null ||
@@ -133,8 +143,10 @@ namespace GuidedArrow.Progression
                 for (int i = tracked.Count - 1; i >= 0; i--)
                 {
                     object entry = tracked[i];
-                    if (!IsExactLiveRegistryEntry(registry, entry, out _, out _))
-                        tracked.RemoveAt(i);
+                    if (IsExactLiveRegistryEntry(registry, entry, out _, out _))
+                        continue;
+
+                    RemoveInvalidTrackedEntry(instance, tracked, i, entry);
                 }
 
                 RepairOwnership(instance, tracked);
@@ -144,6 +156,37 @@ namespace GuidedArrow.Progression
                 // The verified core remains authoritative when a future game/core version changes
                 // a reflected field. Never replace a normal mission tick with a sidecar exception.
             }
+        }
+
+        private static void RemoveInvalidTrackedEntry(object instance, IList tracked, int index, object entry)
+        {
+            if (tracked == null || index < 0 || index >= tracked.Count) return;
+
+            try { _abandonNativePresentationHandlesMethod?.Invoke(null, new[] { entry }); }
+            catch { }
+
+            if (_removeTrackedMissileMethod != null && entry != null)
+            {
+                try
+                {
+                    _removeTrackedMissileMethod.Invoke(instance, new[] { entry, (object)true });
+                    return;
+                }
+                catch
+                {
+                    // Fall back to managed-list removal only. The native presentation handles were
+                    // already abandoned, so this fallback does not touch the expired wrapper.
+                }
+            }
+
+            try
+            {
+                if (index < tracked.Count && ReferenceEquals(tracked[index], entry))
+                    tracked.RemoveAt(index);
+                else
+                    tracked.Remove(entry);
+            }
+            catch { }
         }
 
         private static Mission ResolveMission(object instance)
