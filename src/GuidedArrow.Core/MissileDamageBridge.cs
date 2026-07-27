@@ -127,6 +127,8 @@ internal static class MissileDamageBridge
 
 	internal static string InstallFailure => _installFailure ?? string.Empty;
 
+	internal static bool IsSyntheticOverrideActive => _activeOverride != null;
+
 	internal static void Install()
 	{
 		//IL_014b: Unknown result type (might be due to invalid IL or missing references)

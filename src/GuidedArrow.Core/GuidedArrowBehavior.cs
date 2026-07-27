@@ -676,7 +676,11 @@ public sealed class GuidedArrowBehavior : MissionView
 		bool isAlliedTakeover = instance != null && instance.EnableAlliedArrowTakeover && _alliedTakeoverChainArmed && IsFriendlyAlliedShooter(shooterAgent, mainAgent);
 		if (_state != State.Idle)
 		{
-			if (isAlliedTakeover)
+			if (MissileDamageBridge.IsSyntheticOverrideActive)
+			{
+				Log("Ignored Guided Arrow's own synthetic missile callback while the active shot remained in flight.");
+			}
+			else if (isAlliedTakeover)
 			{
 				QueueAlliedTakeover(shooterAgent, forcedMissileIndex, position, velocity);
 			}
