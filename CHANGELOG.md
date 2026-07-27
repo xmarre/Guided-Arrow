@@ -4,14 +4,13 @@
 
 - Moved the Guided Arrow Mastery button to the bottom-right of the native character-development screen.
 - Fixed the character-screen overlay input registration so the mastery button receives mouse clicks.
-- Added a deferred, overlay-safe transition from the character screen to the mastery tree.
+- Changed character-screen navigation to close Bannerlord's native `CharacterDeveloperState` before opening mastery.
+- Added a short campaign-map stabilisation delay before the mastery screen is pushed, preventing the map-bar panel index crash.
 - Restricted Ctrl+U to the campaign map, preventing the mastery screen from being pushed over character-development or other campaign panels.
 - Restored the character-screen mastery button after returning from the mastery tree.
-- Reworked native multi-projectile callback capture so TOR Lethal Shot and other native burst abilities remain native and do not trigger standalone split fallback.
-- Kept Guided Arrow standalone splitting completely separate from native/TOR split batches.
-- Reworked controlled penetration continuations to spawn beyond the impacted agent and explicitly ignore that agent's entity.
-- Prevented Guided Arrow's own synthetic split and penetration missiles from being recaptured as native multi-shot siblings.
-- Added a complete buildable core project recovered deterministically from the verified v1.1.17 binary, with provenance and source-integrity documentation.
+- Restored and SHA-256-locked the exact known-working v1.1.17 `GuidedArrow.dll` after a recovered-core test build caused an immediate native mission-start crash.
+- Kept the recovered core project as non-shippable audit/reference material only.
+- Deferred penetration and TOR native-volley changes until they can be implemented as targeted patches around the stable core and verified separately.
 
 ## 1.2.1
 
