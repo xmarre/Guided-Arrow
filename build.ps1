@@ -10,7 +10,7 @@ $BuildOut = Join-Path $Artifacts "build"
 $Stage = Join-Path $Artifacts "stage"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
-$Version = "1.2.1"
+$Version = "1.2.2"
 
 Remove-Item $Artifacts -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $BuildOut, $Stage, $Dist | Out-Null
