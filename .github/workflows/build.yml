@@ -28,7 +28,7 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
-      - name: Recover and compile current core
+      - name: Recover current core
         if: github.event_name == 'pull_request'
         shell: pwsh
         run: |
@@ -60,16 +60,28 @@ jobs:
           </Project>
           '@ | Set-Content artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -Encoding UTF8
 
-          dotnet restore artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj
-          dotnet build artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -c Release --no-restore -o artifacts/recovered-core-build /p:ContinuousIntegrationBuild=true 2>&1 | Tee-Object artifacts/recovered-core-build.log
-          if ($LASTEXITCODE -ne 0) { throw "Recovered core compile probe failed with exit code $LASTEXITCODE" }
+      - name: Compile recovered core probe
+        id: recovered_core
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet restore artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj *>&1 | Tee-Object artifacts/recovered-core-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -c Release --no-restore -o artifacts/recovered-core-build /p:ContinuousIntegrationBuild=true *>&1 | Tee-Object artifacts/recovered-core-build.log -Append
+          exit $LASTEXITCODE
 
+      - name: Index recovered penetration path
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
           Get-ChildItem artifacts/recovered-core -Recurse -Filter *.cs |
             Select-String -Pattern 'QueuePenetrationContinuation|TrySpawnPenetrationContinuation|OnMissileCollisionReaction|EnsureStandaloneSplitProjectiles|AcquireSplitShotSiblings|Lethal' |
             ForEach-Object { "{0}:{1}:{2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() } |
             Set-Content artifacts/recovered-core/PENETRATION_INDEX.txt -Encoding UTF8
 
       - name: Upload compiled, source and analysis artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: GuidedArrow-v1.2.2
@@ -83,6 +95,11 @@ jobs:
             artifacts/recovered-core-build.log
           if-no-files-found: error
           retention-days: 30
+
+      - name: Fail when recovered core probe failed
+        if: github.event_name == 'pull_request' && steps.recovered_core.outcome != 'success'
+        shell: pwsh
+        run: throw 'Recovered core compile probe failed; inspect recovered-core-build.log in the workflow artifact.'
 
       - name: Resolve release version
         id: release_meta
