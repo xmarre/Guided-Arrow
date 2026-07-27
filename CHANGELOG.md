@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.0
+
+- Rebuilt Guided Arrow Mastery as a centre-outward specialization tree instead of a left-to-right unlock list.
+- Raised maximum mastery rank to 99 and grants one mastery point per rank.
+- Converted all 19 masteries to multi-level skills, generally with 10 or 20 levels and level-specific bonuses.
+- Added current-level, next-level, prerequisite-level and maximum-level information to every mastery node.
+- Added a specialization budget: the complete tree requires far more than 99 points, so one character cannot maximize every branch.
+- Added a Bannerlord-scaled mastery XP curve reaching approximately 68,000 XP at rank 99.
+- Rebalanced XP around unique victims, kills, distance and bounded multi-kill rewards, with a 32 XP cap per guided shot before multipliers.
+- Added a separate Mastery XP Multiplier setting from 0.25 to 3.00.
+- Migrated old binary mastery unlocks to level 1 of the corresponding v1.3.0 skills.
+- Removed Harmony getter patches from the normal Guided Arrow MCM settings, fixing the crash when that MCM page was opened while progression was enabled.
+- Applies progression restrictions only during Guided Arrow mission callbacks and restores every original setting immediately afterwards.
+- Keeps the normal Guided Arrow MCM values as configurable upper limits rather than rewriting the displayed settings.
+- Fixed Guided Release's initial four-second cap with a direct real-time timeout, bypassing the stable core's internal five-second minimum.
+- Added per-level runtime scaling for guidance duration, turn radius, time control, steering strength, autoguidance, route planning, obstacle avoidance, native-volley control, generated splitting, formations and penetration.
+- Limits how many native/TOR missiles join the controlled group according to Split Awareness without removing any projectile or native effect from the mission.
+- Retains the tested character-screen navigation, additive native-volley and split-penetration stability fixes from v1.2.2.
+
 ## 1.2.2
 
 - Moved the Guided Arrow Mastery button to the bottom-right of the native character-development screen.
