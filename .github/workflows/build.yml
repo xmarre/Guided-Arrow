@@ -24,44 +24,34 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Build and package
-        shell: pwsh
-        run: ./build.ps1
-
-      - name: Recover current core
+      - name: Recover and patch verified v1.1.17 core
         if: github.event_name == 'pull_request'
         shell: pwsh
+        env:
+          EXPECTED_CORE_SHA256: 0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0
         run: |
-          New-Item -ItemType Directory -Force artifacts/tools, artifacts/recovered-core | Out-Null
-          dotnet tool install ilspycmd --tool-path artifacts/tools
-          & artifacts/tools/ilspycmd.exe -p -o artifacts/recovered-core module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
+          $ErrorActionPreference = 'Stop'
+          $core = 'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll'
+          $actual = (Get-FileHash $core -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:EXPECTED_CORE_SHA256) {
+            throw "Core SHA-256 mismatch. Expected $env:EXPECTED_CORE_SHA256, got $actual"
+          }
+
+          Remove-Item work -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force work/tools, work/recovered-core, work/core-build | Out-Null
+          dotnet tool install ilspycmd --tool-path work/tools
+          & work/tools/ilspycmd.exe -p -o work/recovered-core $core
           if ($LASTEXITCODE -ne 0) { throw "ilspycmd failed with exit code $LASTEXITCODE" }
 
-          Get-ChildItem artifacts/recovered-core -Recurse -Filter *.cs | ForEach-Object {
-            $text = [System.IO.File]::ReadAllText($_.FullName)
-            $text = [regex]::Replace($text, '\(\([A-Za-z0-9_.<>]+\)\(ref ([^)]+)\)\)\.', '$1.')
-            $text = [regex]::Replace($text, '(?<![\w.])MissileCollisionReaction\b', 'Mission.MissileCollisionReaction')
-            $text = [regex]::Replace($text, '(?<![\w.])Missile\b', 'Mission.Missile')
-            $text = $text.Replace('Mission.Missile Mission.Missile;', 'Mission.Missile Missile;')
-            $text = $text.Replace('Mission.Missile =', 'Missile =')
-            $text = $text.Replace('((MBSubModuleBase)this).OnSubModuleLoad();', 'base.OnSubModuleLoad();')
-            $text = $text.Replace('((MBSubModuleBase)this).OnMissionBehaviorInitialize(mission);', 'base.OnMissionBehaviorInitialize(mission);')
-            $text = $text.Replace('Path.', 'System.IO.Path.')
-            $text = $text.Replace('new OnAgentHealthChangedDelegate(', 'new Agent.OnAgentHealthChangedDelegate(')
-            $text = $text.Replace('new TimeSpeedRequest(', 'new Mission.TimeSpeedRequest(')
-            $text = $text.Replace('_003F fallback;', 'Vec3 fallback;')
-            $text = $text.Replace('fallback = ((_003F?)obj) ?? new Vec3(0f, 1f, 0f, -1f);', 'fallback = obj ?? new Vec3(0f, 1f, 0f, -1f);')
-            $text = $text.Replace('_shotDirection = NormalizeSafe(velocity, (Vec3)fallback);', '_shotDirection = NormalizeSafe(velocity, fallback);')
-            $text = $text.Replace('value._002Ector(1f, 0f, 0f, -1f);', 'value = new Vec3(1f, 0f, 0f, -1f);')
-            [System.IO.File]::WriteAllText($_.FullName, $text)
-          }
+          python tools/patch_recovered_core.py work/recovered-core
+          if ($LASTEXITCODE -ne 0) { throw "Recovered-core patcher failed with exit code $LASTEXITCODE" }
 
           @'
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
               <TargetFramework>net472</TargetFramework>
               <LangVersion>latest</LangVersion>
-              <AssemblyName>GuidedArrow.RecoveredProbe</AssemblyName>
+              <AssemblyName>GuidedArrow</AssemblyName>
               <RootNamespace>GuidedArrow</RootNamespace>
               <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
               <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -77,35 +67,21 @@ jobs:
               <PackageReference Include="NETStandard.Library" Version="2.0.3" PrivateAssets="All" />
             </ItemGroup>
           </Project>
-          '@ | Set-Content artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -Encoding UTF8
+          '@ | Set-Content work/recovered-core/GuidedArrow.Recovered.csproj -Encoding UTF8
 
-      - name: Compile recovered core probe
-        id: recovered_core
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
+          dotnet restore work/recovered-core/GuidedArrow.Recovered.csproj
+          dotnet build work/recovered-core/GuidedArrow.Recovered.csproj -c Release --no-restore -o work/core-build /p:ContinuousIntegrationBuild=true
+          if (-not (Test-Path 'work/core-build/GuidedArrow.dll')) { throw 'Recovered GuidedArrow.dll was not produced.' }
+
+          Copy-Item work/core-build/GuidedArrow.dll module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -Force
+          Copy-Item work/core-build/GuidedArrow.pdb module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.pdb -Force
+          Get-FileHash work/core-build/GuidedArrow.dll -Algorithm SHA256 | Format-List
+
+      - name: Build and package
         shell: pwsh
-        run: |
-          & dotnet restore artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj *> artifacts/recovered-core-restore.log
-          $restoreCode = $LASTEXITCODE
-          Get-Content artifacts/recovered-core-restore.log
-          if ($restoreCode -ne 0) { exit $restoreCode }
+        run: ./build.ps1
 
-          & dotnet build artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -c Release --no-restore -o artifacts/recovered-core-build /p:ContinuousIntegrationBuild=true *> artifacts/recovered-core-build.log
-          $buildCode = $LASTEXITCODE
-          Get-Content artifacts/recovered-core-build.log
-          exit $buildCode
-
-      - name: Index recovered penetration path
-        if: github.event_name == 'pull_request'
-        shell: pwsh
-        run: |
-          Get-ChildItem artifacts/recovered-core -Recurse -Filter *.cs |
-            Select-String -Pattern 'QueuePenetrationContinuation|TrySpawnPenetrationContinuation|OnMissileCollisionReaction|EnsureStandaloneSplitProjectiles|AcquireSplitShotSiblings|Lethal' |
-            ForEach-Object { "{0}:{1}:{2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() } |
-            Set-Content artifacts/recovered-core/PENETRATION_INDEX.txt -Encoding UTF8
-
-      - name: Upload compiled, source and analysis artifacts
-        if: always()
+      - name: Upload compiled, source and recovery artifacts
         uses: actions/upload-artifact@v4
         with:
           name: GuidedArrow-v1.2.2
@@ -114,17 +90,11 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/build/GuidedArrow.Progression.dll
             artifacts/build/GuidedArrow.Progression.pdb
-            artifacts/recovered-core/**
-            artifacts/recovered-core-build/**
-            artifacts/recovered-core-restore.log
-            artifacts/recovered-core-build.log
+            work/core-build/GuidedArrow.dll
+            work/core-build/GuidedArrow.pdb
+            work/recovered-core/**
           if-no-files-found: error
           retention-days: 30
-
-      - name: Fail when recovered core probe failed
-        if: github.event_name == 'pull_request' && steps.recovered_core.outcome == 'failure'
-        shell: pwsh
-        run: throw 'Recovered core compile probe failed; inspect recovered-core-build.log in the workflow artifact.'
 
       - name: Resolve release version
         id: release_meta
@@ -155,6 +125,9 @@ jobs:
           - Added safe deferred navigation from the character screen to the mastery tree.
           - Restricted **Ctrl+U** to the campaign map, preventing crashes when the hotkey is pressed over character-development or other campaign panels.
           - Restored the character-screen button after returning from the mastery tree.
+          - Reworked native multi-projectile capture so TOR Lethal Shot and other native bursts remain native instead of falling back to standalone splitting.
+          - Separated controlled penetration continuations from TOR-specific behaviour.
+          - Spawned penetration continuations beyond the impacted agent and marked that agent as ignored, preventing immediate same-target recollision.
 
           ### Installation
 
