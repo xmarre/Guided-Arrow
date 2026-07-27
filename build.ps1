@@ -24,7 +24,7 @@ if (-not (Test-Path $CoreDll)) {
 }
 $coreHash = (Get-FileHash $CoreDll -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($coreHash -ne $ExpectedCoreSha256) {
-    throw "GuidedArrow.dll integrity failure. Expected stable v1.1.17 core $ExpectedCoreSha256, got $coreHash. The recovered core must never be packaged."
+    throw "GuidedArrow.dll integrity failure. Expected stable v1.1.17 core $ExpectedCoreSha256, got $coreHash. Only the verified core may be packaged."
 }
 Write-Host "Verified stable GuidedArrow.dll SHA-256: $coreHash"
 
@@ -43,7 +43,6 @@ $SourceStage = Join-Path $Stage "GuidedArrow-v$Version-SOURCE"
 New-Item -ItemType Directory -Force -Path $SourceStage | Out-Null
 Copy-Item (Join-Path $Root "src") $SourceStage -Recurse -Force
 Copy-Item (Join-Path $Root "module") $SourceStage -Recurse -Force
-Copy-Item (Join-Path $Root "tools") $SourceStage -Recurse -Force
 Copy-Item (Join-Path $Root "README.md"), (Join-Path $Root "CHANGELOG.md"), (Join-Path $Root "BUILD.md"), (Join-Path $Root "GuidedArrow.sln"), (Join-Path $Root "build.ps1") $SourceStage -Force
 
 Get-ChildItem $SourceStage -Directory -Recurse -Force |
