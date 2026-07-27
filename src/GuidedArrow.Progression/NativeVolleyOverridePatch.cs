@@ -166,13 +166,6 @@ namespace GuidedArrow.Progression
             IList tracked = GetTracked(__instance);
             if (tracked == null || tracked.Count == 0) return;
 
-            bool standaloneSpawned = GetBool(_standaloneSplitSpawnedField, __instance);
-            if (standaloneSpawned)
-            {
-                RemoveQueuedNativeMissiles(__instance, null);
-                return;
-            }
-
             Agent activeShooter;
             try { activeShooter = _activeShotShooterField.GetValue(__instance) as Agent; }
             catch { return; }
@@ -190,6 +183,11 @@ namespace GuidedArrow.Progression
                 nativeExtras.Add(item);
             }
 
+            // TOR siblings are normally discovered by Guided Arrow during the first
+            // original OnMissionTick, after this prefix has already run. That first tick
+            // marks standalone splitting as handled because a native batch exists. On the
+            // following tick we must still replace the now-visible native extras instead
+            // of returning merely because _standaloneSplitSpawned is already true.
             RemoveQueuedNativeMissiles(__instance, nativeExtras);
             if (nativeExtras.Count == 0) return;
 
@@ -206,9 +204,10 @@ namespace GuidedArrow.Progression
                     tracked.RemoveAt(i);
             }
 
-            // Make the configured standalone count authoritative. The original core will
-            // now see one valid leader, a closed native-acquisition window and no native
-            // split flag, so EnsureStandaloneSplitProjectiles creates total-count - 1.
+            // Make the configured standalone count authoritative even when the previous
+            // tick already set _standaloneSplitSpawned while skipping a detected TOR batch.
+            // The original core now sees one valid leader, a closed acquisition window and
+            // no native-batch flag, so EnsureStandaloneSplitProjectiles creates count - 1.
             SetBool(_nativeSplitBatchDetectedField, __instance, false);
             SetBool(_standaloneSplitSpawnedField, __instance, false);
             SetBool(_splitSiblingAcquisitionClosedField, __instance, true);
