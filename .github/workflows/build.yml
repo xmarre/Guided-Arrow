@@ -14,6 +14,8 @@ jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -37,3 +39,75 @@ jobs:
             artifacts/build/GuidedArrow.Progression.pdb
           if-no-files-found: error
           retention-days: 30
+
+      - name: Resolve release version
+        id: release_meta
+        if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')
+        shell: pwsh
+        run: |
+          $firstLine = ('${{ github.event.head_commit.message }}' -split "`r?`n")[0].Trim()
+          if ($firstLine -notmatch '^Release v(?<version>\d+\.\d+\.\d+)$') {
+            throw "Release commit must use the exact first-line format: Release vX.Y.Z"
+          }
+          $version = $Matches.version
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Write release notes
+        if: steps.release_meta.outcome == 'success'
+        shell: pwsh
+        run: |
+          @'
+          ## Guided Arrow v1.2.1
+
+          **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
+
+          ### Highlights
+
+          - Added the optional Guided Arrow Mastery progression tree with 19 unlockable skills.
+          - Added a separate MCM toggle under **Guided Arrow - Mastery Progression**.
+          - Added direct progression enable/disable controls to the mastery screen.
+          - Added a **Guided Arrow Mastery** button to the native character-development screen.
+          - Retained the **Ctrl+U** campaign-map shortcut.
+          - Fixed startup patching of the inherited `OnAgentHit` callback.
+          - Added explicit progression-state cleanup when leaving a campaign.
+          - Preserved the original v1.1.17 Guided Arrow gameplay runtime byte-identically.
+
+          ### Installation
+
+          1. Delete the existing `Modules/GuidedArrow` folder.
+          2. Extract the compiled ZIP into Bannerlord's `Modules` folder.
+          3. Enable Guided Arrow and its required dependencies in the launcher.
+
+          ### Requirements
+
+          - Harmony
+          - ButterLib
+          - UIExtenderEx
+          - Mod Configuration Menu v5
+
+          ### Downloads
+
+          - `GuidedArrow-v1.2.1-Bannerlord-1.3.15-to-1.4.7-Universal.zip` — installable module
+          - `GuidedArrow-v1.2.1-SOURCE.zip` — current source and module snapshot
+          - `SHA256SUMS.txt` — integrity hashes for the release files and binaries
+
+          The complete buildable source currently covers the v1.2.1 progression, MCM and UI sidecar. The original v1.1.17 core source was not included in the supplied clean archive, so its verified compiled DLL is preserved unchanged.
+          '@ | Set-Content release-notes.md -Encoding UTF8
+
+      - name: Publish GitHub release
+        if: steps.release_meta.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: Guided Arrow v${{ steps.release_meta.outputs.version }}
+          body_path: release-notes.md
+          target_commitish: main
+          prerelease: false
+          draft: false
+          make_latest: true
+          files: |
+            dist/GuidedArrow-v${{ steps.release_meta.outputs.version }}-Bannerlord-1.3.15-to-1.4.7-Universal.zip
+            dist/GuidedArrow-v${{ steps.release_meta.outputs.version }}-SOURCE.zip
+            checksums/SHA256SUMS.txt
+          fail_on_unmatched_files: true
