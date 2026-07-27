@@ -8,16 +8,18 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
-- Progression/MCM source: buildable under `src/GuidedArrow.Progression`
+- Progression/MCM and stable-core sidecar patches: buildable under `src/GuidedArrow.Progression`
 - Runtime module: ready to install under `module/GuidedArrow`
 
 The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native crash when missions started. The recovered implementation and patch scripts have therefore been removed rather than retained as misleading or unsafe source. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
+
+Core corrections are introduced only as narrowly scoped Harmony patches in the maintained progression sidecar. The penetration-continuation safety patch adjusts the stable core's existing synthetic continuation at runtime: it places the new missile beyond the impacted agent and marks that agent entity as pass-through before the next native mission tick.
 
 ## Repository layout
 
 ```text
 src/GuidedArrow.Core/            provenance note for the binary-only stable core
-src/GuidedArrow.Progression/     mastery progression, MCM and UI source
+src/GuidedArrow.Progression/     mastery, MCM, UI and narrow stable-core patches
 module/GuidedArrow/              installable Bannerlord module tree
 dist/                            clean compiled and source archives
 checksums/                       SHA-256 manifests
@@ -73,4 +75,4 @@ The build fails immediately if the stable core DLL is missing or has changed.
 
 ## Current runtime scope
 
-This stable-core recovery build contains the character-screen navigation fixes and progression UI changes. The proposed penetration and TOR native-volley changes from the recovered-core experiment are not shipped. They must be implemented as targeted patches around the stable core and verified separately in game.
+This stable-core build contains the character-screen navigation fixes, progression UI changes and the targeted penetration-continuation safety correction. The exact v1.1.17 core binary remains unchanged. TOR native-volley capture changes remain deferred until they can be implemented as a separate narrow patch and verified in game.
