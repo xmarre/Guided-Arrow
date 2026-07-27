@@ -36,7 +36,7 @@ namespace GuidedArrow.Progression
         protected override void OnSubModuleLoad()
         {
             base.OnSubModuleLoad();
-            _harmony = new Harmony("guidedarrow.progression.1.2.0");
+            _harmony = new Harmony("guidedarrow.progression.1.3.0");
             GuidedArrowPatches.Install(_harmony);
         }
 
@@ -87,7 +87,7 @@ namespace GuidedArrow.Progression
 
         protected override void OnSubModuleUnloaded()
         {
-            try { _harmony?.UnpatchAll("guidedarrow.progression.1.2.0"); } catch { }
+            try { _harmony?.UnpatchAll("guidedarrow.progression.1.3.0"); } catch { }
             CancelPendingCharacterScreenOpen();
             _characterButton.Detach();
             ProgressionService.Detach();
