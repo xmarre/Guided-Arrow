@@ -24,11 +24,21 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Decompile current core penetration path
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/tools, artifacts/decompiled | Out-Null
+          dotnet tool install ilspycmd --tool-path artifacts/tools
+          & artifacts/tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll | Set-Content artifacts/decompiled/GuidedArrowBehavior.cs -Encoding UTF8
+          & artifacts/tools/ilspycmd.exe -t GuidedArrow.MissileDamageBridge module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll | Set-Content artifacts/decompiled/MissileDamageBridge.cs -Encoding UTF8
+          & artifacts/tools/ilspycmd.exe -t GuidedArrow.TrackedMissile module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll | Set-Content artifacts/decompiled/TrackedMissile.cs -Encoding UTF8
+
       - name: Build and package
         shell: pwsh
         run: ./build.ps1
 
-      - name: Upload compiled and source archives
+      - name: Upload compiled, source and analysis artifacts
         uses: actions/upload-artifact@v4
         with:
           name: GuidedArrow-v1.2.2
@@ -37,6 +47,7 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/build/GuidedArrow.Progression.dll
             artifacts/build/GuidedArrow.Progression.pdb
+            artifacts/decompiled/*.cs
           if-no-files-found: error
           retention-days: 30
 
