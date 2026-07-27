@@ -51,21 +51,16 @@ jobs:
             throw "Source bootstrap SHA-256 mismatch: $sourceHash"
           }
 
-      - name: Download and verify exact v1.1.17 core archive
+      - name: Reconstruct and verify exact v1.1.17 core archive
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $blobUrl = 'https://api.github.com/repos/xmarre/MapPerfFix/git/blobs/3d8a935613b81546ea03cff97afe3df0802c741a'
-          $headers = @{
-            'Accept' = 'application/vnd.github+json'
-            'X-GitHub-Api-Version' = '2022-11-28'
-            'User-Agent' = 'Guided-Arrow-Repository-Bootstrap'
+          $coreChunkPaths = Get-ChildItem '.bootstrap/core.*.b64' | Sort-Object Name
+          if ($coreChunkPaths.Count -ne 9) {
+            throw "Expected 9 core chunks, found $($coreChunkPaths.Count)."
           }
-          $blob = Invoke-RestMethod -Uri $blobUrl -Headers $headers
-          if ($blob.encoding -ne 'base64') { throw "Unexpected GitHub blob encoding: $($blob.encoding)" }
-          $decodedBlob = [Convert]::FromBase64String(($blob.content -replace '\s', ''))
-          $coreArchiveBase64 = [Text.Encoding]::UTF8.GetString($decodedBlob)
-          [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String($coreArchiveBase64))
+          $coreBase64 = [string]::Concat(($coreChunkPaths | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }))
+          [IO.File]::WriteAllBytes('work/core.zip', [Convert]::FromBase64String($coreBase64))
           $coreHash = (Get-FileHash 'work/core.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
           Write-Host "Core archive SHA-256: $coreHash"
           if ($coreHash -ne '7a6d1d73581ef73d491281baf33a372da3aa7209871d4d463938c5361aac3241') {
@@ -131,7 +126,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Remove-Item 'bootstrap' -Recurse -Force
-          Remove-Item '.bootstrap' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item '.bootstrap' -Recurse -Force
           Remove-Item 'work' -Recurse -Force
           Remove-Item 'diagnostics' -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item '.github/workflows/bootstrap-v1.2.1.yml' -Force
