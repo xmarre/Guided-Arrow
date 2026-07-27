@@ -14,10 +14,11 @@
 - Serialised deferred split-arrow penetration continuations to one custom missile per mission tick instead of creating an entire large volley in one native tick.
 - Rejected true/null and incomplete reflected continuation results before the stable core can dereference them.
 - Added a targeted deferred-worker recovery path that restores untouched queued continuations, removes invalid tracked entries and repairs leader/camera references after a continuation-specific null-reference failure.
-- Made the standalone split override authoritative for native/TOR player volleys such as Waywatcher Lethal Shot.
-- Kept one native ability projectile as the weapon and resolved-damage source, removed the remaining native siblings before the core mission tick, and generated the configured total through Guided Arrow's existing standalone splitter.
-- Prevented removed native ability siblings from entering the penetration-continuation worker.
-- Preserved native/TOR volley behaviour unchanged when the standalone split override is disabled or set to one projectile.
+- Removed the destructive native-volley replacement patch after it regressed ordinary split-arrow impacts and stripped TOR ability projectiles of their perk-specific behaviour.
+- Preserved every native/TOR ability projectile, including Waywatcher Lethal Shot magic, explosion and other perk callbacks.
+- Added the configured Guided Arrow split count on top of a native/TOR volley instead of replacing it. A five-arrow Lethal Shot with a split count of 30 therefore produces 35 total projectiles.
+- Kept native/TOR ability arrows on their own collision and penetration path while Guided Arrow's synthetic penetration remains available for the added followers.
+- Left native/TOR volleys unchanged when standalone splitting is disabled or set to one projectile.
 
 ## 1.2.1
 
