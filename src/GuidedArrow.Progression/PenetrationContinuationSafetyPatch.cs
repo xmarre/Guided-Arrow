@@ -22,9 +22,9 @@ namespace GuidedArrow.Progression
         private static FieldInfo _impactPositionField;
         private static FieldInfo _impactVelocityField;
         private static FieldInfo _impactDirectionField;
-        private static FieldInfo _victimField;
         private static FieldInfo _trackedMissileNativeMissileField;
         private static FieldInfo _trackedMissileIndexField;
+        private static FieldInfo _pendingCollisionContextsField;
         private static FieldInfo _pendingContinuationSpawnsField;
         private static FieldInfo _trackedMissilesField;
         private static FieldInfo _leaderMissileField;
@@ -74,9 +74,9 @@ namespace GuidedArrow.Progression
             _impactPositionField = AccessTools.Field(contextType, "ImpactPosition");
             _impactVelocityField = AccessTools.Field(contextType, "ImpactVelocity");
             _impactDirectionField = AccessTools.Field(contextType, "ImpactDirection");
-            _victimField = AccessTools.Field(contextType, "Victim");
             _trackedMissileNativeMissileField = AccessTools.Field(trackedType, "Missile");
             _trackedMissileIndexField = AccessTools.Field(trackedType, "Index");
+            _pendingCollisionContextsField = AccessTools.Field(behaviorType, "_pendingCollisionContexts");
             _pendingContinuationSpawnsField = AccessTools.Field(behaviorType, "_pendingContinuationSpawns");
             _trackedMissilesField = AccessTools.Field(behaviorType, "_trackedMissiles");
             _leaderMissileField = AccessTools.Field(behaviorType, "_missile");
@@ -90,20 +90,21 @@ namespace GuidedArrow.Progression
                 _trackedMissileIndexField == null)
                 return;
 
-            MethodInfo queueMethod = AccessTools.Method(
-                behaviorType,
-                "QueuePenetrationContinuation",
-                new[] { trackedType, contextType });
-            MethodInfo capturePrefix = AccessTools.Method(
+            MethodInfo queueContextMethod = behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(method =>
+                    method.Name == "QueuePendingCollisionContext" &&
+                    method.GetParameters().Length == 6);
+            MethodInfo capturePostfix = AccessTools.Method(
                 typeof(PenetrationContinuationSafetyPatch),
-                nameof(CaptureExitDistancePrefix));
-            if (queueMethod != null && capturePrefix != null)
+                nameof(CaptureExitDistancePostfix));
+            if (queueContextMethod != null && capturePostfix != null && _pendingCollisionContextsField != null)
             {
                 try
                 {
                     harmony.Patch(
-                        queueMethod,
-                        prefix: new HarmonyMethod(capturePrefix) { priority = Priority.First });
+                        queueContextMethod,
+                        postfix: new HarmonyMethod(capturePostfix) { priority = Priority.Last });
                 }
                 catch { }
             }
@@ -138,16 +139,26 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static void CaptureExitDistancePrefix(object[] __args)
+        private static void CaptureExitDistancePostfix(object __instance, object[] __args)
         {
-            if (__args == null || __args.Length < 2 || __args[1] == null) return;
+            if (__instance == null || __args == null || __args.Length < 6 || _pendingCollisionContextsField == null)
+                return;
 
-            object context = __args[1];
             try
             {
-                Vec3 impactPosition = (Vec3)_impactPositionField.GetValue(context);
-                Vec3 impactVelocity = (Vec3)_impactVelocityField.GetValue(context);
-                Vec3 impactDirection = (Vec3)_impactDirectionField.GetValue(context);
+                IList contexts = _pendingCollisionContextsField.GetValue(__instance) as IList;
+                if (contexts == null || contexts.Count == 0) return;
+
+                // QueuePendingCollisionContext removes the old entry for this missile and appends the
+                // new one. Capture against that exact newly created context while OnMissileHit still
+                // owns a live victim; the collision-reaction callback may run after victim teardown.
+                object context = contexts[contexts.Count - 1];
+                if (context == null) return;
+
+                Agent victim = __args[2] as Agent;
+                Vec3 impactPosition = (Vec3)__args[3];
+                Vec3 impactVelocity = (Vec3)__args[4];
+                Vec3 impactDirection = (Vec3)__args[5];
 
                 Vec3 direction = impactVelocity;
                 float speed = direction.Length;
@@ -162,12 +173,8 @@ namespace GuidedArrow.Progression
                 if (!IsFinite(direction)) return;
 
                 float desiredExitDistance = SafeContinuationExitDistance;
-                Agent victim = _victimField?.GetValue(context) as Agent;
                 if (victim != null)
                 {
-                    // This is captured synchronously inside the original collision path, while the
-                    // victim is still a live collision participant. Only the resulting float survives
-                    // into the deferred worker; no Agent or native entity is retained there.
                     Vec3 victimDelta = victim.Position - impactPosition;
                     float centreDepth =
                         victimDelta.x * direction.x +
@@ -184,7 +191,7 @@ namespace GuidedArrow.Progression
             }
             catch
             {
-                ExitDistanceSnapshots.Remove(context);
+                // Fallback distance is used if the early managed snapshot cannot be captured.
             }
         }
 
@@ -234,8 +241,8 @@ namespace GuidedArrow.Progression
                 ExitDistanceSnapshots.Remove(context);
 
                 // The stable core already advances 0.42 m. Apply only the remaining distance. The
-                // distance was captured during the collision callback and is now pure managed data;
-                // this deferred worker never dereferences the old victim or its native presentation.
+                // distance was captured during OnMissileHit and is now pure managed data; this
+                // deferred worker never dereferences the old victim or its native presentation.
                 float additionalOffset = Math.Max(0f, desiredExitDistance - CoreContinuationOffset);
                 _impactPositionField.SetValue(context, impactPosition + direction * additionalOffset);
 
