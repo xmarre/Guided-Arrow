@@ -9,5 +9,7 @@ GUIDED ARROW v1.2.2
 - Removed the unsafe recovered core implementation and recovery scripts from the maintained source tree.
 - Added a narrow sidecar correction around the stable core's penetration continuation instead of rebuilding the core DLL.
 - Spawned synthetic penetration continuations beyond the impacted agent and marked that entity as pass-through.
-- Invalid continuation vectors or missing stable-core metadata now cancel the continuation safely instead of entering the native tick with an unsafe projectile.
+- Serialised large split-arrow penetration batches so only one custom continuation is created per mission tick.
+- Rejected null or incomplete reflected continuation results before the stable core can dereference them.
+- Added a continuation-worker recovery path that preserves untouched queued arrows and repairs invalid tracked, leader and camera references.
 - TOR native-volley capture changes remain deferred until they can be implemented safely around the stable core runtime.
