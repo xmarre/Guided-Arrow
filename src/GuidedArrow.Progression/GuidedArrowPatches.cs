@@ -109,9 +109,13 @@ namespace GuidedArrow.Progression
             PatchBoolResult(harmony, behaviorType, "ShouldBreakFormationForAutoguidance", nameof(BreakFormationPostfix));
             PatchBoolResult(harmony, behaviorType, "IsAgentPenetrationOverrideEnabled", nameof(PenetrationEnabledPostfix));
             PatchBoolResult(harmony, behaviorType, "IsAutoguidanceEligibleMissile", nameof(AutoguidanceEligiblePostfix));
+
+            // Native ability arrows retain TOR/native collision ownership. The safety patch
+            // continues to protect ordinary and Guided Arrow-generated continuations.
+            NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             if (settingsType != null)
-                NativeVolleyOverridePatch.Install(harmony, behaviorType, settingsType);
+                NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
         }
 
         private static void PatchBoolResult(Harmony harmony, Type type, string methodName, string postfixName)
