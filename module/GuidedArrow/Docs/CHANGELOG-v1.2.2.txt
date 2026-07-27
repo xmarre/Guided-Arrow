@@ -4,4 +4,8 @@ GUIDED ARROW v1.2.2
 - Added a safe deferred transition from the character screen to the mastery tree.
 - Restricted Ctrl+U to the campaign map to prevent crashes over character-development and other campaign panels.
 - Restored the character-screen mastery button after returning from the mastery tree.
-- Kept the v1.1.17 gameplay runtime byte-identical.
+- Reworked native multi-projectile capture so TOR Lethal Shot and other native burst abilities keep their original projectile batch instead of triggering Guided Arrow standalone split fallback.
+- Kept standalone splitting independent from native and TOR-provided split volleys.
+- Reworked controlled penetration continuations to spawn beyond the impacted agent and explicitly ignore that target's entity.
+- Prevented Guided Arrow's own synthetic split and penetration missiles from being recaptured as native burst siblings.
+- Added a complete buildable core project recovered deterministically from the verified v1.1.17 runtime, with source provenance documented in the repository.
