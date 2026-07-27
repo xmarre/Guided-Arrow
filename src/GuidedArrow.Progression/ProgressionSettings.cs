@@ -7,6 +7,7 @@ namespace GuidedArrow.Progression
     internal sealed class ProgressionSettings : AttributeGlobalSettings<ProgressionSettings>
     {
         private bool _enableProgression;
+        private float _masteryXpMultiplier = 1f;
 
         public override string Id => "GuidedArrow_Progression_v1";
         public override string DisplayName => "Guided Arrow - Mastery Progression";
@@ -17,7 +18,7 @@ namespace GuidedArrow.Progression
             "Enable Mastery Progression",
             Order = 0,
             RequireRestart = false,
-            HintText = "Enables the Guided Arrow mastery tree. Guided Arrow features are restricted by unlocked mastery nodes. This can also be changed from the mastery screen.")]
+            HintText = "Enables the level-99 Guided Arrow mastery tree. Runtime features are limited by invested skill ranks; the original Guided Arrow MCM values remain your upper limits.")]
         [SettingPropertyGroup("Progression", GroupOrder = 0)]
         public bool EnableProgression
         {
@@ -28,6 +29,27 @@ namespace GuidedArrow.Progression
                 _enableProgression = value;
                 OnPropertyChanged();
                 ProgressionService.ApplyConfiguredEnabled(value);
+            }
+        }
+
+        [SettingPropertyFloatingInteger(
+            "Mastery XP Multiplier",
+            0.25f,
+            3f,
+            "0.00",
+            Order = 1,
+            RequireRestart = false,
+            HintText = "Scales mastery XP only. 1.00 is balanced for a long Bannerlord campaign; lower values slow progression and higher values shorten it.")]
+        [SettingPropertyGroup("Progression", GroupOrder = 0)]
+        public float MasteryXpMultiplier
+        {
+            get => _masteryXpMultiplier;
+            set
+            {
+                float clamped = value < 0.25f ? 0.25f : (value > 3f ? 3f : value);
+                if (_masteryXpMultiplier == clamped) return;
+                _masteryXpMultiplier = clamped;
+                OnPropertyChanged();
             }
         }
     }
