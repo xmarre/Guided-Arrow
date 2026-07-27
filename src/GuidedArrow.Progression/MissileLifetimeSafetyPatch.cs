@@ -29,6 +29,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _cameraMissileIndexField;
         private static MethodInfo _abandonNativePresentationHandlesMethod;
         private static MethodInfo _removeTrackedMissileMethod;
+        private static MethodInfo _tryRefreshTrackedMissileHandleMethod;
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
@@ -53,6 +54,12 @@ namespace GuidedArrow.Progression
                 behaviorType,
                 "RemoveTrackedMissile",
                 new[] { trackedType, typeof(bool) });
+            _tryRefreshTrackedMissileHandleMethod = behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(method =>
+                    method.Name == "TryRefreshTrackedMissileHandle" &&
+                    method.ReturnType == typeof(bool) &&
+                    method.GetParameters().Length == 2);
 
             if (_missionMissilesDictionaryField == null ||
                 _trackedMissilesField == null ||
@@ -143,7 +150,7 @@ namespace GuidedArrow.Progression
                 for (int i = tracked.Count - 1; i >= 0; i--)
                 {
                     object entry = tracked[i];
-                    if (IsExactLiveRegistryEntry(registry, entry, out _, out _))
+                    if (IsExactLiveRegistryEntry(instance, registry, entry, out _, out _))
                         continue;
 
                     RemoveInvalidTrackedEntry(instance, tracked, i, entry);
@@ -205,6 +212,7 @@ namespace GuidedArrow.Progression
         }
 
         private static bool IsExactLiveRegistryEntry(
+            object instance,
             object registry,
             object trackedEntry,
             out int index,
@@ -224,9 +232,34 @@ namespace GuidedArrow.Progression
                 return false;
             }
 
-            if (index < 0 || missile == null) return false;
-            return TryGetRegisteredMissile(registry, index, out object registered) &&
-                   ReferenceEquals(registered, missile);
+            if (index < 0 || missile == null || !TryGetRegisteredMissile(registry, index, out object registered))
+                return false;
+            if (ReferenceEquals(registered, missile))
+                return true;
+
+            // Bannerlord can legitimately replace the managed wrapper while preserving the same
+            // missile index, shooter, entity and item after native pass-through. Reuse the verified
+            // core's own identity refresh path before treating a wrapper mismatch as stale. This is
+            // invoked only on a mismatch, so the normal per-frame path remains allocation-free.
+            if (_tryRefreshTrackedMissileHandleMethod == null)
+                return false;
+
+            try
+            {
+                object[] args = { trackedEntry, null };
+                object result = _tryRefreshTrackedMissileHandleMethod.Invoke(instance, args);
+                if (!(result is bool refreshed) || !refreshed || args[1] == null)
+                    return false;
+
+                object refreshedMissile = args[1];
+                missile = _trackedMissileField.GetValue(trackedEntry);
+                return ReferenceEquals(refreshedMissile, registered) &&
+                       ReferenceEquals(missile, registered);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool TryGetRegisteredMissile(object registry, int index, out object missile)
@@ -294,25 +327,25 @@ namespace GuidedArrow.Progression
                 if (entry == null) continue;
 
                 int index;
-                object missile;
+                object liveMissile;
                 try
                 {
                     index = (int)_trackedIndexField.GetValue(entry);
-                    missile = _trackedMissileField.GetValue(entry);
+                    liveMissile = _trackedMissileField.GetValue(entry);
                 }
                 catch
                 {
                     continue;
                 }
 
-                if (index < 0 || missile == null) continue;
+                if (index < 0 || liveMissile == null) continue;
                 if (firstMissile == null)
                 {
-                    firstMissile = missile;
+                    firstMissile = liveMissile;
                     firstIndex = index;
                 }
 
-                if (index == currentLeaderIndex && ReferenceEquals(missile, currentLeader))
+                if (index == currentLeaderIndex && ReferenceEquals(liveMissile, currentLeader))
                     currentLeaderIsLive = true;
                 if (index == cameraIndex)
                     cameraOwnerIsLive = true;
