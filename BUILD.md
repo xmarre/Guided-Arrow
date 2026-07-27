@@ -42,11 +42,11 @@ The normal Guided Arrow MCM settings are never Harmony-patched at getter level. 
 
 Guided Release's four-second starting cap is enforced directly against the core's real-time guidance counter because the verified core internally clamps its own setting to at least five seconds.
 
-Before stable-core guidance and projectile-camera entry points execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. Registry-missing and wrapper-replaced entries are removed through the core's cleanup path without calling their native missile methods. Leader and camera ownership are repaired only from the remaining exact live entries, while intentional camera index `-1` states remain suspended.
+Before stable-core guidance and projectile-camera entry points execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. A legitimate wrapper replacement is first passed through the core's existing shooter/entity/item identity refresh. Registry-missing, identity-mismatched or recycled entries are then removed through the core's cleanup path without calling their native missile methods. Leader and camera ownership are repaired only from the remaining exact live entries, while intentional camera index `-1` states remain suspended.
 
 A penetration collision no longer performs full target collection, skeleton/head lookup or route assignment inside the native collision callback. The impacted target is recorded as consumed through managed references, the current target is cleared when necessary, and the existing fallback direction is retained. Planned-route advancement or fresh target selection then occurs through the normal display-tick path after the original projectile has survived native pass-through or a synthetic continuation has been created.
 
-Synthetic continuation creation uses a fixed safe exit offset and no longer reads the previous victim's position, AgentVisuals or native entity on the following tick. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
+The desired continuation exit distance is calculated synchronously during the original collision callback while the victim is still live. Only that float survives into the deferred worker. Synthetic continuation creation therefore preserves the previous depth-aware offset without reading the old victim's position, AgentVisuals or native entity on the following tick. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
 
 ## Outputs
 
