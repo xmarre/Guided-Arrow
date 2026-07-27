@@ -1,0 +1,13 @@
+GUIDED ARROW v1.3.0
+- Rebuilt Guided Arrow Mastery as a centre-outward specialization tree.
+- Raised maximum mastery rank to 99 with one mastery point per rank.
+- Converted all 19 masteries to multi-level skills, generally with 10 or 20 levels.
+- Added current-level, next-level, prerequisite-level and maximum-level information to every node.
+- Added a Bannerlord-scaled XP curve, unique-victim rewards and a 32 XP cap per shot.
+- Added a Mastery XP Multiplier setting from 0.25 to 3.00.
+- Migrated old binary unlocks to level 1 of their corresponding masteries.
+- Removed progression patches from the normal Guided Arrow MCM getters, fixing the crash when that page was opened with progression enabled.
+- Applies mastery limits only during Guided Arrow mission callbacks and restores the original MCM values immediately afterwards.
+- Fixed Guided Release level 1 to enforce a real four-second guidance cap.
+- Added per-level scaling for guidance, turn control, time dilation, autoguidance, splitting, formations and penetration.
+- Preserved all tested v1.2.2 character-screen, penetration-stability and additive native/TOR-volley fixes.
