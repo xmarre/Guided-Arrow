@@ -43,6 +43,16 @@ jobs:
             $text = [regex]::Replace($text, '(?<![\w.])MissileCollisionReaction\b', 'Mission.MissileCollisionReaction')
             $text = [regex]::Replace($text, '(?<![\w.])Missile\b', 'Mission.Missile')
             $text = $text.Replace('Mission.Missile Mission.Missile;', 'Mission.Missile Missile;')
+            $text = $text.Replace('Mission.Missile =', 'Missile =')
+            $text = $text.Replace('((MBSubModuleBase)this).OnSubModuleLoad();', 'base.OnSubModuleLoad();')
+            $text = $text.Replace('((MBSubModuleBase)this).OnMissionBehaviorInitialize(mission);', 'base.OnMissionBehaviorInitialize(mission);')
+            $text = $text.Replace('Path.', 'System.IO.Path.')
+            $text = $text.Replace('new OnAgentHealthChangedDelegate(', 'new Agent.OnAgentHealthChangedDelegate(')
+            $text = $text.Replace('new TimeSpeedRequest(', 'new Mission.TimeSpeedRequest(')
+            $text = $text.Replace('_003F fallback;', 'Vec3 fallback;')
+            $text = $text.Replace('fallback = ((_003F?)obj) ?? new Vec3(0f, 1f, 0f, -1f);', 'fallback = obj ?? new Vec3(0f, 1f, 0f, -1f);')
+            $text = $text.Replace('_shotDirection = NormalizeSafe(velocity, (Vec3)fallback);', '_shotDirection = NormalizeSafe(velocity, fallback);')
+            $text = $text.Replace('value._002Ector(1f, 0f, 0f, -1f);', 'value = new Vec3(1f, 0f, 0f, -1f);')
             [System.IO.File]::WriteAllText($_.FullName, $text)
           }
 
