@@ -12,7 +12,8 @@ GUIDED ARROW v1.2.2
 - Serialised large split-arrow penetration batches so only one custom continuation is created per mission tick.
 - Rejected null or incomplete reflected continuation results before the stable core can dereference them.
 - Added a continuation-worker recovery path that preserves untouched queued arrows and repairs invalid tracked, leader and camera references.
-- Made the standalone split override authoritative for native/TOR player volleys such as Waywatcher Lethal Shot.
-- Kept one native ability arrow as the weapon and damage source, removed the remaining native siblings before the core mission tick, and generated the configured total with Guided Arrow's standalone splitter.
-- Prevented removed native ability arrows from entering penetration processing.
-- Native/TOR volley counts remain unchanged when the standalone override is disabled or set to one projectile.
+- Removed the destructive native-volley replacement that regressed ordinary split-arrow impacts and discarded TOR ability effects.
+- Preserved all original native/TOR ability arrows and their magic, explosion and perk callbacks.
+- Added the configured Guided Arrow split count on top of native/TOR volleys. Lethal Shot's five native arrows plus a split count of 30 produces 35 total arrows.
+- Kept native ability arrows on TOR/native collision and penetration handling while the added Guided Arrow followers use the hardened synthetic continuation path.
+- Native/TOR volleys remain unchanged when standalone splitting is disabled or set to one projectile.
