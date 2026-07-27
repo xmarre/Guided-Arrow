@@ -48,20 +48,20 @@
                 <Widget DoNotAcceptEvents="true" WidthSizePolicy="Fixed" SuggestedWidth="4" HeightSizePolicy="Fixed" SuggestedHeight="62"
                         HorizontalAlignment="Center" VerticalAlignment="Center" PositionYOffset="76" Sprite="Clan\divider_mid"/>
 
-                <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="260" HeightSizePolicy="Fixed" SuggestedHeight="32"
-                            HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="0"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="23" Brush.FontColor="#82A947FF"
-                            Brush.TextHorizontalAlignment="Center" Text="HUNTER'S MIND"/>
-                <ListPanel DataSource="{HunterNodes}" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                           HeightSizePolicy="Fixed" SuggestedHeight="270" HorizontalAlignment="Center"
-                           VerticalAlignment="Top" MarginTop="30" StackLayout.LayoutMethod="VerticalBottomToTop">
+                <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="300" HeightSizePolicy="Fixed" SuggestedHeight="34"
+                            HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="62"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="24" Brush.FontColor="#C47731FF"
+                            Brush.TextHorizontalAlignment="Center" Text="PIERCING DOCTRINE"/>
+                <ListPanel DataSource="{PiercingNodes}" WidthSizePolicy="Fixed" SuggestedWidth="175"
+                           HeightSizePolicy="Fixed" SuggestedHeight="205" HorizontalAlignment="Center"
+                           VerticalAlignment="Top" MarginTop="95" StackLayout.LayoutMethod="VerticalTopToBottom">
                   <ItemTemplate>
                     <ButtonWidget DoNotPassEventsToChildren="true" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                                  HeightSizePolicy="Fixed" SuggestedHeight="48" MarginTop="4" Brush="Header.Tab.Center"
+                                  HeightSizePolicy="Fixed" SuggestedHeight="58" MarginBottom="6" Brush="Header.Tab.Center"
                                   Command.Click="ExecuteSelect" IsSelected="@IsSelected" UpdateChildrenStates="true">
                       <Children>
                         <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                    Brush="Clan.TabControl.Text" Brush.FontSize="13" Brush.TextHorizontalAlignment="Center"
+                                    Brush="Clan.TabControl.Text" Brush.FontSize="15" Brush.TextHorizontalAlignment="Center"
                                     Brush.TextVerticalAlignment="Center" Text="@ButtonText"/>
                       </Children>
                     </ButtonWidget>
@@ -125,20 +125,20 @@
                   </ItemTemplate>
                 </ListPanel>
 
-                <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="300" HeightSizePolicy="Fixed" SuggestedHeight="34"
-                            HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="225"
-                            Brush="Clan.TabControl.Text" Brush.FontSize="24" Brush.FontColor="#C47731FF"
-                            Brush.TextHorizontalAlignment="Center" Text="PIERCING DOCTRINE"/>
-                <ListPanel DataSource="{PiercingNodes}" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                           HeightSizePolicy="Fixed" SuggestedHeight="205" HorizontalAlignment="Center"
-                           VerticalAlignment="Bottom" MarginBottom="12" StackLayout.LayoutMethod="VerticalTopToBottom">
+                <TextWidget WidthSizePolicy="Fixed" SuggestedWidth="260" HeightSizePolicy="Fixed" SuggestedHeight="32"
+                            HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="270"
+                            Brush="Clan.TabControl.Text" Brush.FontSize="23" Brush.FontColor="#82A947FF"
+                            Brush.TextHorizontalAlignment="Center" Text="HUNTER'S MIND"/>
+                <ListPanel DataSource="{HunterNodes}" WidthSizePolicy="Fixed" SuggestedWidth="175"
+                           HeightSizePolicy="Fixed" SuggestedHeight="270" HorizontalAlignment="Center"
+                           VerticalAlignment="Bottom" MarginBottom="0" StackLayout.LayoutMethod="VerticalBottomToTop">
                   <ItemTemplate>
                     <ButtonWidget DoNotPassEventsToChildren="true" WidthSizePolicy="Fixed" SuggestedWidth="175"
-                                  HeightSizePolicy="Fixed" SuggestedHeight="58" MarginBottom="6" Brush="Header.Tab.Center"
+                                  HeightSizePolicy="Fixed" SuggestedHeight="48" MarginTop="4" Brush="Header.Tab.Center"
                                   Command.Click="ExecuteSelect" IsSelected="@IsSelected" UpdateChildrenStates="true">
                       <Children>
                         <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                    Brush="Clan.TabControl.Text" Brush.FontSize="15" Brush.TextHorizontalAlignment="Center"
+                                    Brush="Clan.TabControl.Text" Brush.FontSize="13" Brush.TextHorizontalAlignment="Center"
                                     Brush.TextVerticalAlignment="Center" Text="@ButtonText"/>
                       </Children>
                     </ButtonWidget>
@@ -149,7 +149,7 @@
                             HorizontalAlignment="Left" VerticalAlignment="Top" MarginLeft="120" MarginTop="18"
                             Brush="Clan.TabControl.Text" Brush.FontSize="20" Brush.FontColor="#5D91B5FF"
                             Brush.TextHorizontalAlignment="Center" Text="CONVERGENCE"/>
-                <ListPanel DataSource="{SynchronizedNodes}" WidthSizePolicy="Fixed" SuggestedWidth="225"
+                <ListPanel DataSource="{NeedleNodes}" WidthSizePolicy="Fixed" SuggestedWidth="225"
                            HeightSizePolicy="Fixed" SuggestedHeight="76" HorizontalAlignment="Left"
                            VerticalAlignment="Top" MarginLeft="118" MarginTop="52" StackLayout.LayoutMethod="HorizontalCentered">
                   <ItemTemplate>
@@ -165,7 +165,7 @@
                   </ItemTemplate>
                 </ListPanel>
 
-                <ListPanel DataSource="{NeedleNodes}" WidthSizePolicy="Fixed" SuggestedWidth="225"
+                <ListPanel DataSource="{SynchronizedNodes}" WidthSizePolicy="Fixed" SuggestedWidth="225"
                            HeightSizePolicy="Fixed" SuggestedHeight="76" HorizontalAlignment="Left"
                            VerticalAlignment="Bottom" MarginLeft="118" MarginBottom="20" StackLayout.LayoutMethod="HorizontalCentered">
                   <ItemTemplate>
