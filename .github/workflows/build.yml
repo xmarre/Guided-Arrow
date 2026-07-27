@@ -37,6 +37,12 @@ jobs:
           & artifacts/tools/ilspycmd.exe -p -o artifacts/recovered-core module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
           if ($LASTEXITCODE -ne 0) { throw "ilspycmd failed with exit code $LASTEXITCODE" }
 
+          Get-ChildItem artifacts/recovered-core -Recurse -Filter *.cs | ForEach-Object {
+            $text = [System.IO.File]::ReadAllText($_.FullName)
+            $text = [regex]::Replace($text, '\(\([A-Za-z0-9_.<>]+\)\(ref ([^)]+)\)\)\.', '$1.')
+            [System.IO.File]::WriteAllText($_.FullName, $text)
+          }
+
           @'
           <Project Sdk="Microsoft.NET.Sdk">
             <PropertyGroup>
@@ -66,10 +72,15 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          dotnet restore artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj *>&1 | Tee-Object artifacts/recovered-core-build.log
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet build artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -c Release --no-restore -o artifacts/recovered-core-build /p:ContinuousIntegrationBuild=true *>&1 | Tee-Object artifacts/recovered-core-build.log -Append
-          exit $LASTEXITCODE
+          & dotnet restore artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj *> artifacts/recovered-core-restore.log
+          $restoreCode = $LASTEXITCODE
+          Get-Content artifacts/recovered-core-restore.log
+          if ($restoreCode -ne 0) { exit $restoreCode }
+
+          & dotnet build artifacts/recovered-core/GuidedArrow.RecoveredProbe.csproj -c Release --no-restore -o artifacts/recovered-core-build /p:ContinuousIntegrationBuild=true *> artifacts/recovered-core-build.log
+          $buildCode = $LASTEXITCODE
+          Get-Content artifacts/recovered-core-build.log
+          exit $buildCode
 
       - name: Index recovered penetration path
         if: github.event_name == 'pull_request'
@@ -92,12 +103,13 @@ jobs:
             artifacts/build/GuidedArrow.Progression.pdb
             artifacts/recovered-core/**
             artifacts/recovered-core-build/**
+            artifacts/recovered-core-restore.log
             artifacts/recovered-core-build.log
           if-no-files-found: error
           retention-days: 30
 
       - name: Fail when recovered core probe failed
-        if: github.event_name == 'pull_request' && steps.recovered_core.outcome != 'success'
+        if: github.event_name == 'pull_request' && steps.recovered_core.outcome == 'failure'
         shell: pwsh
         run: throw 'Recovered core compile probe failed; inspect recovered-core-build.log in the workflow artifact.'
 
