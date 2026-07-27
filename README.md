@@ -15,7 +15,7 @@ The supplied v1.1.17 clean archive did not include the original core source. A r
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.1 adds an exact managed-registry lifetime boundary around the binary core. Before guidance, deferred-work and projectile-camera ticks, every tracked `Mission.Missile` wrapper must still be the exact object registered for its missile index. Removed or replaced wrappers are discarded without invoking native missile methods, preventing expired handles and recycled slots from remaining under Autoguidance control.
+v1.3.1 hardens the long-flight and repeated-penetration lifecycle around the binary core. Before guidance and projectile-camera ticks, every tracked `Mission.Missile` wrapper must still be the exact object registered for its missile index. Removed or replaced wrappers are cleaned up without invoking expired native handles. Post-penetration target changes are deferred out of the native collision callback until the continuing projectile exists on a stable subsequent tick. Removed victims are purged from active and planned Autoguidance state, and deferred synthetic continuation creation no longer reads the previous victim's native position, visuals or entity.
 
 ## Repository layout
 
