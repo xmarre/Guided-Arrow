@@ -1,0 +1,8 @@
+GUIDED ARROW v1.2.1
+- Added a proper MCM toggle for mastery progression.
+- Added direct enable/disable controls to the mastery tree.
+- Added a Guided Arrow Mastery button to the native character-development screen.
+- Retained the Ctrl+U campaign-map shortcut.
+- Fixed progression-side startup patching.
+- Added campaign-exit progression cleanup.
+- Kept the v1.1.17 gameplay runtime byte-identical.

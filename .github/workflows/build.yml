@@ -1,0 +1,39 @@
+name: Build Guided Arrow
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build and package
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Upload compiled and source archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: GuidedArrow-v1.2.1
+          path: |
+            dist/*.zip
+            checksums/SHA256SUMS.txt
+            artifacts/build/GuidedArrow.Progression.dll
+            artifacts/build/GuidedArrow.Progression.pdb
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,10 @@
+**/bin/Debug/
+**/bin/Release/
+**/obj/
+artifacts/
+work/
+.vs/
+.idea/
+*.user
+*.suo
+*.nupkg
