@@ -24,6 +24,10 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Build and package
+        shell: pwsh
+        run: ./build.ps1
+
       - name: Decompile current core penetration path
         if: github.event_name == 'pull_request'
         shell: pwsh
@@ -36,10 +40,6 @@ jobs:
             Select-String -Pattern 'QueuePenetrationContinuation|TrySpawnPenetrationContinuation|OnMissileCollisionReaction|EnsureStandaloneSplitProjectiles|AcquireSplitShotSiblings|Lethal' |
             ForEach-Object { "{0}:{1}:{2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() } |
             Set-Content artifacts/decompiled/PENETRATION_INDEX.txt -Encoding UTF8
-
-      - name: Build and package
-        shell: pwsh
-        run: ./build.ps1
 
       - name: Upload compiled, source and analysis artifacts
         uses: actions/upload-artifact@v4
