@@ -40,6 +40,8 @@ jobs:
           Get-ChildItem artifacts/recovered-core -Recurse -Filter *.cs | ForEach-Object {
             $text = [System.IO.File]::ReadAllText($_.FullName)
             $text = [regex]::Replace($text, '\(\([A-Za-z0-9_.<>]+\)\(ref ([^)]+)\)\)\.', '$1.')
+            $text = [regex]::Replace($text, '(?<![\w.])MissileCollisionReaction\b', 'Mission.MissileCollisionReaction')
+            $text = [regex]::Replace($text, '(?<![\w.])Missile\b', 'Mission.Missile')
             [System.IO.File]::WriteAllText($_.FullName, $text)
           }
 
