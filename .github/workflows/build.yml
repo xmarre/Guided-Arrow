@@ -19,146 +19,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
-      - name: Recover and patch verified v1.1.17 core
-        if: github.event_name == 'pull_request' && hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') == ''
-        shell: pwsh
-        env:
-          EXPECTED_CORE_SHA256: 0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $core = 'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll'
-          $actual = (Get-FileHash $core -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $env:EXPECTED_CORE_SHA256) {
-            throw "Core SHA-256 mismatch. Expected $env:EXPECTED_CORE_SHA256, got $actual"
-          }
-
-          Remove-Item work -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force work/tools, work/recovered-core, work/core-build | Out-Null
-          dotnet tool install ilspycmd --tool-path work/tools
-          & work/tools/ilspycmd.exe -p -o work/recovered-core $core
-          if ($LASTEXITCODE -ne 0) { throw "ilspycmd failed with exit code $LASTEXITCODE" }
-
-          python tools/patch_recovered_core.py work/recovered-core
-          if ($LASTEXITCODE -ne 0) { throw "Recovered-core patcher failed with exit code $LASTEXITCODE" }
-          python tools/apply_core_runtime_guards.py work/recovered-core/GuidedArrow
-          if ($LASTEXITCODE -ne 0) { throw "Synthetic-callback guard patcher failed with exit code $LASTEXITCODE" }
-
-          @'
-          <Project Sdk="Microsoft.NET.Sdk">
-            <PropertyGroup>
-              <TargetFramework>net472</TargetFramework>
-              <LangVersion>latest</LangVersion>
-              <AssemblyName>GuidedArrow</AssemblyName>
-              <RootNamespace>GuidedArrow</RootNamespace>
-              <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-              <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-              <Deterministic>true</Deterministic>
-              <DebugType>pdbonly</DebugType>
-              <Optimize>true</Optimize>
-            </PropertyGroup>
-            <ItemGroup>
-              <PackageReference Include="Bannerlord.ReferenceAssemblies.Core" Version="1.3.15.110062" />
-              <PackageReference Include="Bannerlord.ReferenceAssemblies.Native" Version="1.3.15.110062" PrivateAssets="All" />
-              <PackageReference Include="Lib.Harmony" Version="2.4.1" PrivateAssets="All" />
-              <PackageReference Include="Bannerlord.MCM" Version="5.12.1" IncludeAssets="compile" />
-              <PackageReference Include="NETStandard.Library" Version="2.0.3" PrivateAssets="All" />
-            </ItemGroup>
-          </Project>
-          '@ | Set-Content work/recovered-core/GuidedArrow.Core.csproj -Encoding UTF8
-
-          dotnet restore work/recovered-core/GuidedArrow.Core.csproj
-          dotnet build work/recovered-core/GuidedArrow.Core.csproj -c Release --no-restore -o work/core-build /p:ContinuousIntegrationBuild=true
-          if (-not (Test-Path 'work/core-build/GuidedArrow.dll')) { throw 'Recovered GuidedArrow.dll was not produced.' }
-
-          Copy-Item work/core-build/GuidedArrow.dll module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -Force
-          Copy-Item work/core-build/GuidedArrow.pdb module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.pdb -Force
-          Get-FileHash work/core-build/GuidedArrow.dll -Algorithm SHA256 | Format-List
-
-      - name: Apply committed core runtime guards
-        if: hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') != ''
-        shell: pwsh
-        run: python tools/apply_core_runtime_guards.py src/GuidedArrow.Core
-
-      - name: Build and package
+      - name: Build progression sidecar and package stable core
         shell: pwsh
         run: ./build.ps1
 
-      - name: Commit deterministic core guard updates
-        if: github.event_name == 'pull_request' && hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') != ''
-        shell: pwsh
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/GuidedArrow.Core
-          if (git diff --cached --quiet) {
-            Write-Host 'Committed core already contains all deterministic runtime guards.'
-            exit 0
-          }
-          git commit -m "Isolate synthetic missile callbacks from native bursts"
-          git push origin "HEAD:$env:HEAD_BRANCH"
-
-      - name: Materialize recovered core source
-        if: github.event_name == 'pull_request' && hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') == ''
-        shell: pwsh
-        env:
-          HEAD_BRANCH: ${{ github.head_ref }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $destination = 'src/GuidedArrow.Core'
-          Remove-Item $destination -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force "$destination/Properties" | Out-Null
-          Copy-Item work/recovered-core/GuidedArrow/*.cs $destination -Force
-          Copy-Item work/recovered-core/Properties/AssemblyInfo.cs "$destination/Properties/AssemblyInfo.cs" -Force
-          Copy-Item work/recovered-core/GuidedArrow.Core.csproj "$destination/GuidedArrow.Core.csproj" -Force
-
-          @'
-          # GuidedArrow.Core source provenance
-
-          This project was deterministically recovered from the verified v1.1.17 `GuidedArrow.dll` binary because the supplied clean archive did not contain the original core source.
-
-          - Original binary SHA-256: `0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0`
-          - Recovery tool: ILSpy project export
-          - Normalization and v1.2.2 fixes: `tools/patch_recovered_core.py`
-          - Build target: Bannerlord 1.3.15 / .NET Framework 4.7.2
-
-          This is recovered, buildable source—not a claim that it is the author's original formatting or symbol naming. The v1.2.2 changes remove behavioural coupling between TOR/native multi-shot batches and Guided Arrow standalone splitting, and make synthetic agent penetration continuations ignore the impacted entity safely.
-          '@ | Set-Content "$destination/README.md" -Encoding UTF8
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/GuidedArrow.Core
-          if (git diff --cached --quiet) {
-            Write-Host 'Recovered core source already materialized.'
-            exit 0
-          }
-          git commit -m "Add buildable Guided Arrow core source"
-          git push origin "HEAD:$env:HEAD_BRANCH"
-
-      - name: Upload compiled, source and recovery artifacts
+      - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
           name: GuidedArrow-v1.2.2
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
-            artifacts/core-build/GuidedArrow.dll
-            artifacts/core-build/GuidedArrow.pdb
             artifacts/progression-build/GuidedArrow.Progression.dll
             artifacts/progression-build/GuidedArrow.Progression.pdb
-            work/core-build/GuidedArrow.dll
-            work/core-build/GuidedArrow.pdb
-            work/recovered-core/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
       - name: Resolve release version
@@ -186,14 +65,12 @@ jobs:
           ### Fixes
 
           - Moved the **Guided Arrow Mastery** character-screen button to the bottom-right area.
-          - Fixed the character-screen overlay input registration so the button is clickable.
-          - Added safe deferred navigation from the character screen to the mastery tree.
-          - Restricted **Ctrl+U** to the campaign map, preventing crashes when the hotkey is pressed over character-development or other campaign panels.
-          - Restored the character-screen button after returning from the mastery tree.
-          - Reworked native multi-projectile capture so TOR Lethal Shot and other native bursts remain native instead of falling back to standalone splitting.
-          - Separated controlled penetration continuations from TOR-specific behaviour.
-          - Spawned penetration continuations beyond the impacted agent and marked that agent as ignored, preventing immediate same-target recollision.
-          - Prevented Guided Arrow's own synthetic missiles from being recaptured as native split siblings.
+          - Fixed the overlay input handling so the button is clickable.
+          - Closed Bannerlord's native character-development game state before opening mastery.
+          - Waited for the campaign map and map bar to stabilise before pushing the mastery screen.
+          - Restricted **Ctrl+U** to the campaign map.
+          - Restored the character-screen button after returning from mastery.
+          - Restored the exact verified v1.1.17 core runtime after the recovered-core test build caused a native mission-start crash.
 
           ### Installation
 
@@ -208,11 +85,7 @@ jobs:
           - UIExtenderEx
           - Mod Configuration Menu v5
 
-          ### Downloads
-
-          - `GuidedArrow-v1.2.2-Bannerlord-1.3.15-to-1.4.7-Universal.zip` — installable module
-          - `GuidedArrow-v1.2.2-SOURCE.zip` — current source and module snapshot
-          - `SHA256SUMS.txt` — integrity hashes for the release files and binaries
+          Penetration and TOR native-volley changes are not included in this stable-core recovery build. They require a separate targeted patch and in-game verification.
           '@ | Set-Content release-notes.md -Encoding UTF8
 
       - name: Publish GitHub release
