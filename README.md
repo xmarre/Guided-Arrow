@@ -13,7 +13,7 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native crash when missions started. The recovered implementation and patch scripts have therefore been removed rather than retained as misleading or unsafe source. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
 
-Core corrections are introduced only as narrowly scoped Harmony patches in the maintained progression sidecar. The penetration-continuation safety patch adjusts the stable core's existing synthetic continuation at runtime: it places the new missile beyond the impacted agent and marks that agent entity as pass-through before the next native mission tick.
+Core corrections are introduced only as narrowly scoped Harmony patches in the maintained progression sidecar. The penetration-continuation safety layer adjusts the stable core's existing synthetic continuation at runtime, validates the reflected result before the core dereferences it, and serialises large split-arrow continuation batches instead of creating the full batch in one native mission tick.
 
 ## Repository layout
 
@@ -75,4 +75,6 @@ The build fails immediately if the stable core DLL is missing or has changed.
 
 ## Current runtime scope
 
-This stable-core build contains the character-screen navigation fixes, progression UI changes and the targeted penetration-continuation safety correction. The exact v1.1.17 core binary remains unchanged. TOR native-volley capture changes remain deferred until they can be implemented as a separate narrow patch and verified in game.
+This test branch contains the character-screen navigation fixes, progression UI changes and a sidecar-only penetration hardening layer around the unchanged v1.1.17 core. Synthetic continuations are moved beyond the impacted agent, the impacted entity is marked pass-through, incomplete continuation objects are rejected, and large split-arrow continuation batches are processed one per mission tick with targeted queue/state recovery.
+
+TOR native-volley capture remains separate work and is not claimed as fixed by this build.
