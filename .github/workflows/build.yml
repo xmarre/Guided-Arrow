@@ -48,6 +48,8 @@ jobs:
 
           python tools/patch_recovered_core.py work/recovered-core
           if ($LASTEXITCODE -ne 0) { throw "Recovered-core patcher failed with exit code $LASTEXITCODE" }
+          python tools/apply_core_runtime_guards.py work/recovered-core/GuidedArrow
+          if ($LASTEXITCODE -ne 0) { throw "Synthetic-callback guard patcher failed with exit code $LASTEXITCODE" }
 
           @'
           <Project Sdk="Microsoft.NET.Sdk">
@@ -80,9 +82,30 @@ jobs:
           Copy-Item work/core-build/GuidedArrow.pdb module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.pdb -Force
           Get-FileHash work/core-build/GuidedArrow.dll -Algorithm SHA256 | Format-List
 
+      - name: Apply committed core runtime guards
+        if: hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') != ''
+        shell: pwsh
+        run: python tools/apply_core_runtime_guards.py src/GuidedArrow.Core
+
       - name: Build and package
         shell: pwsh
         run: ./build.ps1
+
+      - name: Commit deterministic core guard updates
+        if: github.event_name == 'pull_request' && hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') != ''
+        shell: pwsh
+        env:
+          HEAD_BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/GuidedArrow.Core
+          if (git diff --cached --quiet) {
+            Write-Host 'Committed core already contains all deterministic runtime guards.'
+            exit 0
+          }
+          git commit -m "Isolate synthetic missile callbacks from native bursts"
+          git push origin "HEAD:$env:HEAD_BRANCH"
 
       - name: Materialize recovered core source
         if: github.event_name == 'pull_request' && hashFiles('src/GuidedArrow.Core/GuidedArrow.Core.csproj') == ''
@@ -170,6 +193,7 @@ jobs:
           - Reworked native multi-projectile capture so TOR Lethal Shot and other native bursts remain native instead of falling back to standalone splitting.
           - Separated controlled penetration continuations from TOR-specific behaviour.
           - Spawned penetration continuations beyond the impacted agent and marked that agent as ignored, preventing immediate same-target recollision.
+          - Prevented Guided Arrow's own synthetic missiles from being recaptured as native split siblings.
 
           ### Installation
 
