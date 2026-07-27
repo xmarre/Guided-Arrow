@@ -4,32 +4,29 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$CoreProject = Join-Path $Root "src/GuidedArrow.Core/GuidedArrow.Core.csproj"
 $ProgressionProject = Join-Path $Root "src/GuidedArrow.Progression/GuidedArrow.Progression.csproj"
 $Artifacts = Join-Path $Root "artifacts"
-$CoreBuildOut = Join-Path $Artifacts "core-build"
 $ProgressionBuildOut = Join-Path $Artifacts "progression-build"
 $Stage = Join-Path $Artifacts "stage"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
 $Version = "1.2.2"
+$ExpectedCoreSha256 = "0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0"
 
 Remove-Item $Artifacts -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $Dist -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $CoreBuildOut, $ProgressionBuildOut, $Stage, $Dist | Out-Null
+New-Item -ItemType Directory -Force -Path $ProgressionBuildOut, $Stage, $Dist | Out-Null
 
 $ModuleBin = Join-Path $Root "module/GuidedArrow/bin/Win64_Shipping_Client"
-New-Item -ItemType Directory -Force -Path $ModuleBin | Out-Null
-
-if (Test-Path $CoreProject) {
-    dotnet restore $CoreProject
-    dotnet build $CoreProject -c $Configuration --no-restore -o $CoreBuildOut /p:ContinuousIntegrationBuild=true
-    Copy-Item (Join-Path $CoreBuildOut "GuidedArrow.dll") (Join-Path $ModuleBin "GuidedArrow.dll") -Force
-    Copy-Item (Join-Path $CoreBuildOut "GuidedArrow.pdb") (Join-Path $ModuleBin "GuidedArrow.pdb") -Force
+$CoreDll = Join-Path $ModuleBin "GuidedArrow.dll"
+if (-not (Test-Path $CoreDll)) {
+    throw "The preserved GuidedArrow.dll core runtime is missing."
 }
-elseif (-not (Test-Path (Join-Path $ModuleBin "GuidedArrow.dll"))) {
-    throw "Neither the Guided Arrow core project nor the preserved core DLL is available."
+$coreHash = (Get-FileHash $CoreDll -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($coreHash -ne $ExpectedCoreSha256) {
+    throw "GuidedArrow.dll integrity failure. Expected stable v1.1.17 core $ExpectedCoreSha256, got $coreHash. The recovered core must never be packaged."
 }
+Write-Host "Verified stable GuidedArrow.dll SHA-256: $coreHash"
 
 dotnet restore $ProgressionProject
 dotnet build $ProgressionProject -c $Configuration --no-restore -o $ProgressionBuildOut /p:ContinuousIntegrationBuild=true
@@ -63,10 +60,9 @@ Compress-Archive -Path (Join-Path $SourceStage "*") -DestinationPath $SourceZip 
 $Files = @(
     $CompiledZip,
     $SourceZip,
-    (Join-Path $ModuleStage "bin/Win64_Shipping_Client/GuidedArrow.dll"),
-    (Join-Path $ModuleStage "bin/Win64_Shipping_Client/GuidedArrow.pdb"),
-    (Join-Path $ModuleStage "bin/Win64_Shipping_Client/GuidedArrow.Progression.dll"),
-    (Join-Path $ModuleStage "bin/Win64_Shipping_Client/GuidedArrow.Progression.pdb")
+    $CoreDll,
+    (Join-Path $ModuleBin "GuidedArrow.Progression.dll"),
+    (Join-Path $ModuleBin "GuidedArrow.Progression.pdb")
 )
 $Lines = foreach ($File in $Files) {
     $Hash = (Get-FileHash $File -Algorithm SHA256).Hash.ToLowerInvariant()
