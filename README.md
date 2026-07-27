@@ -15,7 +15,7 @@ The supplied v1.1.17 clean archive did not include the original core source. A r
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained progression sidecar. The penetration-continuation safety layer adjusts the stable core's existing synthetic continuation at runtime, validates the reflected result before the core dereferences it, and serialises large split-arrow continuation batches instead of creating the full batch in one native mission tick.
 
-When standalone splitting is enabled with a total greater than one, that configured total is authoritative for native/TOR player volleys as well. For abilities such as Waywatcher Lethal Shot, one native ability arrow remains the weapon and resolved-damage source; the extra native siblings are removed before the core mission tick and Guided Arrow creates the configured total through its existing standalone splitter. With standalone splitting disabled or set to one, the native/TOR volley is left unchanged.
+Native/TOR ability volleys are preserved rather than replaced. When the standalone split override is enabled, the configured Guided Arrow split count is added on top of every native ability projectile. For example, Waywatcher Lethal Shot keeps all five original magic/explosive arrows and a configured split count of 30 adds 30 Guided Arrow followers, for 35 total projectiles. The original native arrows remain on TOR/native collision and penetration handling; only the added followers use Guided Arrow's synthetic continuation path. With standalone splitting disabled or set to one, the native/TOR volley is unchanged.
 
 ## Repository layout
 
@@ -77,6 +77,6 @@ The build fails immediately if the stable core DLL is missing or has changed.
 
 ## Current runtime scope
 
-This test branch contains the character-screen navigation fixes, progression UI changes, penetration hardening and native-volley replacement around the unchanged v1.1.17 core. Synthetic continuations are moved beyond the impacted agent, the impacted entity is marked pass-through, incomplete continuation objects are rejected, and large split-arrow continuation batches are processed one per mission tick with targeted queue/state recovery.
+This test branch contains the character-screen navigation fixes, progression UI changes, penetration hardening and additive native-volley support around the unchanged v1.1.17 core. Synthetic continuations are moved beyond the impacted agent, the impacted entity is marked pass-through, incomplete continuation objects are rejected, and large split-arrow continuation batches are processed one per mission tick with targeted queue/state recovery.
 
-The native-volley replacement is generic and contains no static `TOR_Core` dependency. It acts only when the standalone split override is enabled with a requested total above one; otherwise native ability volleys retain their original count and behaviour.
+The native-volley augmentation is generic and contains no static `TOR_Core` dependency. It activates only when a real multi-projectile native volley is present and the standalone split override requests more than one additional follower. Ordinary Guided Arrow split shots remain on the original stable path and do not enter native-volley augmentation.
