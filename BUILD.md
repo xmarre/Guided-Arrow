@@ -32,18 +32,21 @@ The maintained `GuidedArrow.Progression` project contains:
 - MCM integration;
 - character-screen navigation;
 - narrow runtime patches around the verified core;
-- split-penetration stability and additive native-volley support.
+- split-penetration stability and additive native-volley support;
+- exact live-registry validation for stable-core missile wrappers.
 
-## v1.3.0 runtime-setting model
+## v1.3.1 runtime model
 
 The normal Guided Arrow MCM settings are never Harmony-patched at getter level. During a Guided Arrow mission callback, the sidecar temporarily applies the effective mastery limits to the settings backing fields and restores every original value in a Harmony finalizer. This keeps the MCM page stable and makes the configured values upper limits for progression.
 
 Guided Release's four-second starting cap is enforced directly against the core's real-time guidance counter because the verified core internally clamps its own setting to at least five seconds.
 
+Before stable-core guidance, deferred-work and projectile-camera tick paths execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. Registry-missing and wrapper-replaced entries are removed without calling native missile methods. Leader and camera ownership are then repaired only from the remaining exact live entries.
+
 ## Outputs
 
-- `dist/GuidedArrow-v1.3.0-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
-- `dist/GuidedArrow-v1.3.0-SOURCE.zip`
+- `dist/GuidedArrow-v1.3.1-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
+- `dist/GuidedArrow-v1.3.1-SOURCE.zip`
 - `checksums/SHA256SUMS.txt`
 
 The source archive excludes build intermediates and includes the current source, module tree, solution, documentation and build script.
