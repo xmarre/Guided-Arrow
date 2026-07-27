@@ -1,5 +1,6 @@
 GUIDED ARROW v1.3.0
 - Rebuilt Guided Arrow Mastery as a centre-outward specialization tree.
+- Corrected the vertical orientation: Piercing Doctrine grows upward and Hunter's Mind grows downward, with Needle Storm and Synchronized Hunt moved to their matching outer junctions.
 - Raised maximum mastery rank to 99 with one mastery point per rank.
 - Converted all 19 masteries to multi-level skills, generally with 10 or 20 levels.
 - Added current-level, next-level, prerequisite-level and maximum-level information to every node.
