@@ -28,7 +28,14 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
-      - name: Upload compiled and source archives
+      - name: Decompile verified core for PR diagnosis
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          dotnet tool install --global ilspycmd --version 9.1.0.7988
+          ilspycmd -p -o artifacts/core-decompiled module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
+
+      - name: Upload compiled, source and diagnostic artifacts
         uses: actions/upload-artifact@v4
         with:
           name: GuidedArrow-v1.3.1
@@ -37,6 +44,7 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/progression-build/GuidedArrow.Progression.dll
             artifacts/progression-build/GuidedArrow.Progression.pdb
+            artifacts/core-decompiled/**
           if-no-files-found: error
           retention-days: 30
 
