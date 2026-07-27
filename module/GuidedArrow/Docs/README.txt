@@ -13,7 +13,7 @@ Mod Configuration Menu v5
 MASTERY TREE
 Open from the character-development screen with the bottom-right Guided Arrow Mastery button or press Ctrl+U on the campaign map.
 Ctrl+U is intentionally disabled while other campaign panels are open.
-The tree grows outwards from Guided Release: Hunter's Mind north, Hand of the Archer east, Arrow Choir west, Piercing Doctrine south and Convergence on the outer junctions.
+The tree grows outwards from Guided Release: Piercing Doctrine north, Hand of the Archer east, Arrow Choir west, Hunter's Mind south and Convergence on the outer junctions.
 Mastery rank runs from 1 to 99. Every rank grants one point. Most skills have 10 or 20 levels, so specialization is required.
 
 ENABLE PROGRESSION
