@@ -73,10 +73,13 @@ jobs:
 
           ### Concentrated volley stability
 
-          - Removes native victim-position reads from penetration collision callbacks.
+          - Raises pending collision-context and early-reaction capacity from 32 to 256.
+          - Preserves every correlation record in 48-arrow and larger same-tick impact bursts.
+          - Reuses managed impact positions for repeated hits on an already-tracked victim.
+          - Replaces post-impact Agent health reads with the collision packet's fatal-damage flag.
+          - Detaches cinematic subjects when agent removal begins so camera ticks use stored positions.
           - Uses a fixed managed 1.25-metre exit distance for synthetic continuations.
           - Keeps continuation creation serialised to one custom missile per mission tick.
-          - Calculates mastery range from collision data and the cached shot origin.
           - Retains v1.3.1 live-missile validation and deferred Autoguidance retargeting.
           - Keeps the verified v1.1.17 gameplay core byte-identical.
 
