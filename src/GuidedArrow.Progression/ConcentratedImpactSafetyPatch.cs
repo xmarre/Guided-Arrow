@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
+using TaleWorlds.Engine;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
@@ -13,9 +14,9 @@ namespace GuidedArrow.Progression
     /// <summary>
     /// Keeps concentrated split-volley impacts inside managed lifetime boundaries.
     ///
-    /// The verified core re-sampled native victim bones and health for every arrow striking an
-    /// already-tracked victim. Repeated same-tick impacts must instead retain managed collision
-    /// values once the first impact has established a cinematic subject.
+    /// The verified core queried the impacted missile entity and victim skeleton after native
+    /// collision processing had already started. A managed wrapper can still exist at that point
+    /// while its underlying native missile or agent presentation handle is no longer safe to read.
     /// </summary>
     internal static class ConcentratedImpactSafetyPatch
     {
@@ -23,7 +24,10 @@ namespace GuidedArrow.Progression
         private static int _victimArgumentIndex = -1;
         private static MethodInfo _agentHealthGetter;
         private static MethodInfo _collisionFatalDamageGetter;
+        private static MethodInfo _missileEntityGetter;
+        private static Type _cinematicSubjectType;
         private static FieldInfo _cinematicSubjectsField;
+        private static FieldInfo _impactPositionField;
         private static FieldInfo _subjectAgentField;
         private static FieldInfo _subjectLastKnownPositionField;
         private static FieldInfo _subjectHasLastKnownPositionField;
@@ -32,11 +36,11 @@ namespace GuidedArrow.Progression
         {
             if (harmony == null || behaviorType == null) return;
 
-            PatchMissileHitFatalCheck(harmony, behaviorType);
+            PatchMissileHitLifetimeReads(harmony, behaviorType);
             PatchCinematicSampling(harmony, behaviorType);
         }
 
-        private static void PatchMissileHitFatalCheck(Harmony harmony, Type behaviorType)
+        private static void PatchMissileHitLifetimeReads(Harmony harmony, Type behaviorType)
         {
             MethodInfo method = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -66,12 +70,19 @@ namespace GuidedArrow.Progression
             _victimArgumentIndex = secondAgentParameterIndex + 1;
             _agentHealthGetter = AccessTools.PropertyGetter(typeof(Agent), nameof(Agent.Health));
             _collisionFatalDamageGetter = AccessTools.PropertyGetter(typeof(AttackCollisionData), "IsFatalDamage");
+            _missileEntityGetter = typeof(MBMissile)
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(candidate =>
+                    candidate.Name == "get_Entity" &&
+                    candidate.GetParameters().Length == 0 &&
+                    candidate.ReturnType == typeof(GameEntity));
 
             MethodInfo transpiler = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
                 nameof(MissileHitTranspiler));
             if (_agentHealthGetter == null ||
                 _collisionFatalDamageGetter == null ||
+                _missileEntityGetter == null ||
                 transpiler == null)
                 return;
 
@@ -88,18 +99,47 @@ namespace GuidedArrow.Progression
             IEnumerable<CodeInstruction> instructions)
         {
             List<CodeInstruction> code = instructions.ToList();
-            MethodInfo replacementMethod = AccessTools.Method(
+            MethodInfo fatalReplacement = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
                 nameof(ReadFatalDamageAsHealthSentinel));
-            if (replacementMethod == null ||
+            MethodInfo entityReplacement = AccessTools.Method(
+                typeof(ConcentratedImpactSafetyPatch),
+                nameof(ReturnNoImpactedMissileEntity));
+            if (fatalReplacement == null ||
+                entityReplacement == null ||
                 _agentHealthGetter == null ||
+                _missileEntityGetter == null ||
                 _collisionArgumentIndex < 0 ||
                 _victimArgumentIndex < 0)
                 return code;
 
-            for (int i = 1; i < code.Count; i++)
+            int entityReads = 0;
+            int fatalReads = 0;
+            for (int i = 0; i < code.Count; i++)
             {
-                if (!CallsMethod(code[i], _agentHealthGetter) ||
+                if (CallsMethod(code[i], _missileEntityGetter)) entityReads++;
+                if (i > 0 &&
+                    CallsMethod(code[i], _agentHealthGetter) &&
+                    LoadsArgument(code[i - 1], _victimArgumentIndex))
+                    fatalReads++;
+            }
+
+            // This patch is intentionally locked to the verified v1.1.17 OnMissileHit shape.
+            if (entityReads != 1 || fatalReads != 1)
+                return code;
+
+            for (int i = 0; i < code.Count; i++)
+            {
+                if (CallsMethod(code[i], _missileEntityGetter))
+                {
+                    CodeInstruction replacement = new CodeInstruction(OpCodes.Call, entityReplacement);
+                    CopyMetadata(code[i], replacement);
+                    code[i] = replacement;
+                    continue;
+                }
+
+                if (i == 0 ||
+                    !CallsMethod(code[i], _agentHealthGetter) ||
                     !LoadsArgument(code[i - 1], _victimArgumentIndex))
                     continue;
 
@@ -107,13 +147,19 @@ namespace GuidedArrow.Progression
                 CopyMetadata(code[i - 1], loadCollision);
                 code[i - 1] = loadCollision;
 
-                CodeInstruction callReplacement = new CodeInstruction(OpCodes.Call, replacementMethod);
+                CodeInstruction callReplacement = new CodeInstruction(OpCodes.Call, fatalReplacement);
                 CopyMetadata(code[i], callReplacement);
                 code[i] = callReplacement;
-                break;
             }
 
             return code;
+        }
+
+        private static GameEntity ReturnNoImpactedMissileEntity(MBMissile missile)
+        {
+            // Never dereference the impacted native missile wrapper from OnMissileHit. The arrow
+            // entity is optional cinematic decoration; collision position remains authoritative.
+            return null;
         }
 
         private static float ReadFatalDamageAsHealthSentinel(ref AttackCollisionData collision)
@@ -141,56 +187,35 @@ namespace GuidedArrow.Progression
 
         private static void PatchCinematicSampling(Harmony harmony, Type behaviorType)
         {
-            Type subjectType = behaviorType.GetNestedType(
+            _cinematicSubjectType = behaviorType.GetNestedType(
                 "CinematicSubjectRecord",
                 BindingFlags.Public | BindingFlags.NonPublic);
-            if (subjectType == null) return;
+            if (_cinematicSubjectType == null) return;
 
             _cinematicSubjectsField = AccessTools.Field(behaviorType, "_cinematicSubjects");
-            _subjectAgentField = AccessTools.Field(subjectType, "Agent");
-            _subjectLastKnownPositionField = AccessTools.Field(subjectType, "LastKnownPosition");
-            _subjectHasLastKnownPositionField = AccessTools.Field(subjectType, "HasLastKnownPosition");
+            _impactPositionField = AccessTools.Field(behaviorType, "_impactPosition");
+            _subjectAgentField = AccessTools.Field(_cinematicSubjectType, "Agent");
+            _subjectLastKnownPositionField = AccessTools.Field(_cinematicSubjectType, "LastKnownPosition");
+            _subjectHasLastKnownPositionField = AccessTools.Field(_cinematicSubjectType, "HasLastKnownPosition");
             if (_cinematicSubjectsField == null ||
+                _impactPositionField == null ||
                 _subjectAgentField == null ||
                 _subjectLastKnownPositionField == null ||
                 _subjectHasLastKnownPositionField == null)
                 return;
 
-            MethodInfo trackMethod = AccessTools.Method(
-                behaviorType,
-                "TrackCinematicSubject",
-                new[] { typeof(Agent), typeof(Vec3) });
-            MethodInfo trackPrefix = AccessTools.Method(
-                typeof(ConcentratedImpactSafetyPatch),
+            PatchPrefix(
+                harmony,
+                AccessTools.Method(behaviorType, "TrackCinematicSubject", new[] { typeof(Agent), typeof(Vec3) }),
                 nameof(TrackCinematicSubjectPrefix));
-            if (trackMethod != null && trackPrefix != null)
-            {
-                try
-                {
-                    harmony.Patch(
-                        trackMethod,
-                        prefix: new HarmonyMethod(trackPrefix) { priority = Priority.First });
-                }
-                catch { }
-            }
-
-            MethodInfo snapshotMethod = AccessTools.Method(
-                behaviorType,
-                "SnapshotCinematicSubject",
-                new[] { typeof(Agent) });
-            MethodInfo snapshotPrefix = AccessTools.Method(
-                typeof(ConcentratedImpactSafetyPatch),
+            PatchPrefix(
+                harmony,
+                AccessTools.Method(behaviorType, "SnapshotCinematicSubject", new[] { typeof(Agent) }),
                 nameof(SnapshotCinematicSubjectPrefix));
-            if (snapshotMethod != null && snapshotPrefix != null)
-            {
-                try
-                {
-                    harmony.Patch(
-                        snapshotMethod,
-                        prefix: new HarmonyMethod(snapshotPrefix) { priority = Priority.First });
-                }
-                catch { }
-            }
+            PatchPrefix(
+                harmony,
+                AccessTools.Method(behaviorType, "GetRagdollVisualPosition", new[] { typeof(Agent) }),
+                nameof(GetRagdollVisualPositionPrefix));
 
             MethodInfo removalPostfix = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
@@ -214,37 +239,50 @@ namespace GuidedArrow.Progression
             }
         }
 
+        private static void PatchPrefix(Harmony harmony, MethodInfo original, string prefixName)
+        {
+            MethodInfo prefix = AccessTools.Method(typeof(ConcentratedImpactSafetyPatch), prefixName);
+            if (harmony == null || original == null || prefix == null) return;
+
+            try
+            {
+                harmony.Patch(
+                    original,
+                    prefix: new HarmonyMethod(prefix) { priority = Priority.First });
+            }
+            catch { }
+        }
+
         private static bool TrackCinematicSubjectPrefix(object __instance, object[] __args)
         {
             if (__instance == null || __args == null || __args.Length < 2)
                 return true;
 
             Agent victim = __args[0] as Agent;
-            if (victim == null || !TryFindCinematicSubject(__instance, victim, out object subject))
-                return true;
+            if (victim == null) return false;
 
             try
             {
-                Vec3 safePosition = Vec3.Zero;
-                if (__args[1] is Vec3 fallbackPosition && IsFinite(fallbackPosition))
+                if (!TryFindCinematicSubject(__instance, victim, out object subject))
                 {
-                    safePosition = fallbackPosition;
-                }
-                else
-                {
-                    object cached = _subjectLastKnownPositionField.GetValue(subject);
-                    if (cached is Vec3 cachedPosition && IsFinite(cachedPosition))
-                        safePosition = cachedPosition;
+                    IList subjects = _cinematicSubjectsField.GetValue(__instance) as IList;
+                    if (subjects == null) return true;
+
+                    subject = Activator.CreateInstance(_cinematicSubjectType, true);
+                    _subjectAgentField.SetValue(subject, victim);
+                    subjects.Add(subject);
                 }
 
+                Vec3 safePosition = ResolveManagedImpactPosition(__instance, __args[1], subject);
                 _subjectLastKnownPositionField.SetValue(subject, safePosition);
                 _subjectHasLastKnownPositionField.SetValue(subject, true);
+                return false;
             }
-            catch { }
-
-            // The victim already has a managed subject record. Never re-enter skeleton/bone queries
-            // for this subject, including when collision data did not contain a finite position.
-            return false;
+            catch
+            {
+                // Preserve the core path only when the managed record itself could not be created.
+                return true;
+            }
         }
 
         private static bool SnapshotCinematicSubjectPrefix(object __instance, object[] __args)
@@ -256,9 +294,60 @@ namespace GuidedArrow.Progression
             if (victim == null || !TryFindCinematicSubject(__instance, victim, out _))
                 return true;
 
-            // An existing subject must remain on its managed cached-position path. Falling through
-            // would query native visuals again while the same impact burst may be removing it.
+            // An existing subject remains on its managed cached-position path. Falling through would
+            // query native bones while the impact or removal callback is still active.
             return false;
+        }
+
+        private static bool GetRagdollVisualPositionPrefix(
+            object __instance,
+            Agent __0,
+            ref Vec3 __result)
+        {
+            if (__instance == null || __0 == null ||
+                !TryFindCinematicSubject(__instance, __0, out object subject))
+                return true;
+
+            try
+            {
+                if (!(bool)_subjectHasLastKnownPositionField.GetValue(subject))
+                    return true;
+
+                object cached = _subjectLastKnownPositionField.GetValue(subject);
+                if (!(cached is Vec3 cachedPosition) || !IsFinite(cachedPosition))
+                    return true;
+
+                __result = cachedPosition;
+                return false;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private static Vec3 ResolveManagedImpactPosition(object instance, object fallbackBox, object subject)
+        {
+            if (fallbackBox is Vec3 fallbackPosition && IsFinite(fallbackPosition))
+                return fallbackPosition;
+
+            try
+            {
+                object impact = _impactPositionField.GetValue(instance);
+                if (impact is Vec3 impactPosition && IsFinite(impactPosition))
+                    return impactPosition;
+            }
+            catch { }
+
+            try
+            {
+                object cached = _subjectLastKnownPositionField.GetValue(subject);
+                if (cached is Vec3 cachedPosition && IsFinite(cachedPosition))
+                    return cachedPosition;
+            }
+            catch { }
+
+            return Vec3.Zero;
         }
 
         private static void AgentRemovalPostfix(object __instance, object[] __args)
@@ -272,7 +361,6 @@ namespace GuidedArrow.Progression
             try
             {
                 // Once removal has started, only the managed last-known impact position is safe.
-                // The core's later cinematic ticks must not re-enter the removed agent's visuals.
                 _subjectAgentField.SetValue(subject, null);
             }
             catch { }
