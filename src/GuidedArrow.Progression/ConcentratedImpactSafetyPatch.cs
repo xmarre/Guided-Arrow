@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using TaleWorlds.Engine;
 using TaleWorlds.Library;
@@ -31,6 +32,24 @@ namespace GuidedArrow.Progression
         private static FieldInfo _subjectAgentField;
         private static FieldInfo _subjectLastKnownPositionField;
         private static FieldInfo _subjectHasLastKnownPositionField;
+
+        private static readonly Dictionary<Agent, Vec3> ManagedVictimPositions =
+            new Dictionary<Agent, Vec3>(AgentReferenceComparer.Instance);
+
+        private sealed class AgentReferenceComparer : IEqualityComparer<Agent>
+        {
+            internal static readonly AgentReferenceComparer Instance = new AgentReferenceComparer();
+
+            public bool Equals(Agent x, Agent y)
+            {
+                return ReferenceEquals(x, y);
+            }
+
+            public int GetHashCode(Agent obj)
+            {
+                return obj == null ? 0 : RuntimeHelpers.GetHashCode(obj);
+            }
+        }
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
@@ -220,22 +239,40 @@ namespace GuidedArrow.Progression
             MethodInfo removalPostfix = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
                 nameof(AgentRemovalPostfix));
-            if (removalPostfix == null) return;
-
-            foreach (string callback in new[] { "OnEarlyAgentRemoved", "OnAgentRemoved", "OnAgentDeleted" })
+            if (removalPostfix != null)
             {
-                foreach (MethodInfo method in behaviorType
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .Where(candidate => candidate.Name == callback && !candidate.IsAbstract))
+                foreach (string callback in new[] { "OnEarlyAgentRemoved", "OnAgentRemoved", "OnAgentDeleted" })
                 {
-                    try
+                    foreach (MethodInfo method in behaviorType
+                        .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                        .Where(candidate => candidate.Name == callback && !candidate.IsAbstract))
                     {
-                        harmony.Patch(
-                            method,
-                            postfix: new HarmonyMethod(removalPostfix) { priority = Priority.Last });
+                        try
+                        {
+                            harmony.Patch(
+                                method,
+                                postfix: new HarmonyMethod(removalPostfix) { priority = Priority.Last });
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
+            }
+
+            MethodInfo resetPostfix = AccessTools.Method(
+                typeof(ConcentratedImpactSafetyPatch),
+                nameof(ResetPostfix));
+            foreach (MethodInfo method in behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(candidate => candidate.Name == "ResetAll" && !candidate.IsAbstract))
+            {
+                if (resetPostfix == null) break;
+                try
+                {
+                    harmony.Patch(
+                        method,
+                        postfix: new HarmonyMethod(resetPostfix) { priority = Priority.Last });
+                }
+                catch { }
             }
         }
 
@@ -276,6 +313,7 @@ namespace GuidedArrow.Progression
                 Vec3 safePosition = ResolveManagedImpactPosition(__instance, __args[1], subject);
                 _subjectLastKnownPositionField.SetValue(subject, safePosition);
                 _subjectHasLastKnownPositionField.SetValue(subject, true);
+                ManagedVictimPositions[victim] = safePosition;
                 return false;
             }
             catch
@@ -299,31 +337,14 @@ namespace GuidedArrow.Progression
             return false;
         }
 
-        private static bool GetRagdollVisualPositionPrefix(
-            object __instance,
-            Agent __0,
-            ref Vec3 __result)
+        private static bool GetRagdollVisualPositionPrefix(Agent __0, ref Vec3 __result)
         {
-            if (__instance == null || __0 == null ||
-                !TryFindCinematicSubject(__instance, __0, out object subject))
+            if (__0 == null || !ManagedVictimPositions.TryGetValue(__0, out Vec3 cachedPosition) ||
+                !IsFinite(cachedPosition))
                 return true;
 
-            try
-            {
-                if (!(bool)_subjectHasLastKnownPositionField.GetValue(subject))
-                    return true;
-
-                object cached = _subjectLastKnownPositionField.GetValue(subject);
-                if (!(cached is Vec3 cachedPosition) || !IsFinite(cachedPosition))
-                    return true;
-
-                __result = cachedPosition;
-                return false;
-            }
-            catch
-            {
-                return true;
-            }
+            __result = cachedPosition;
+            return false;
         }
 
         private static Vec3 ResolveManagedImpactPosition(object instance, object fallbackBox, object subject)
@@ -360,10 +381,16 @@ namespace GuidedArrow.Progression
 
             try
             {
-                // Once removal has started, only the managed last-known impact position is safe.
+                // Keep ManagedVictimPositions until ResetAll because the cinematic path can retain
+                // the Agent wrapper after native removal. Only detach the subject's live reference.
                 _subjectAgentField.SetValue(subject, null);
             }
             catch { }
+        }
+
+        private static void ResetPostfix()
+        {
+            ManagedVictimPositions.Clear();
         }
 
         private static bool TryFindCinematicSubject(object instance, Agent victim, out object subject)
