@@ -17,12 +17,13 @@ namespace GuidedArrow.Progression
             Type behaviorType = assembly.GetType("GuidedArrow.GuidedArrowBehavior", false);
             if (behaviorType == null) return;
 
-            // Progression settings are now applied once for the complete guided-shot lifetime.
-            // Do not patch collision/penetration result methods or mutate the tracked swarm from
-            // progression code while an impact is being resolved.
+            // Progression settings are applied once for the complete guided-shot lifetime.
+            // ConcentratedImpactSafetyPatch then expands the core's 32-entry impact correlation
+            // queues and prevents repeated native victim sampling during same-target bursts.
             if (settingsType != null)
                 ProgressionRuntimeSettingsPatch.Install(harmony, behaviorType, settingsType);
 
+            ConcentratedImpactSafetyPatch.Install(harmony, behaviorType);
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
