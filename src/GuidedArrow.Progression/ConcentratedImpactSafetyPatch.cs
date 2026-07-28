@@ -13,17 +13,12 @@ namespace GuidedArrow.Progression
     /// <summary>
     /// Keeps concentrated split-volley impacts inside managed lifetime boundaries.
     ///
-    /// The verified core retained only 32 pending collision contexts and 32 early native
-    /// reactions. A larger same-tick volley therefore discarded live correlation state before
-    /// Bannerlord delivered every collision reaction, leaving affected tracked missiles waiting
-    /// on callbacks that could no longer be matched. The same impact path also re-sampled native
-    /// victim bones and health for every arrow striking one already-tracked victim.
+    /// The verified core re-sampled native victim bones and health for every arrow striking an
+    /// already-tracked victim. Repeated same-tick impacts must instead retain managed collision
+    /// values once the first impact has established a cinematic subject.
     /// </summary>
     internal static class ConcentratedImpactSafetyPatch
     {
-        private const int OriginalCollisionQueueCapacity = 32;
-        private const int SafeCollisionQueueCapacity = 256;
-
         private static int _collisionArgumentIndex = -1;
         private static int _victimArgumentIndex = -1;
         private static MethodInfo _agentHealthGetter;
@@ -37,47 +32,8 @@ namespace GuidedArrow.Progression
         {
             if (harmony == null || behaviorType == null) return;
 
-            PatchQueueCapacity(harmony, behaviorType, "QueuePendingCollisionContext");
-            PatchQueueCapacity(harmony, behaviorType, "QueueEarlyCollisionReaction");
             PatchMissileHitFatalCheck(harmony, behaviorType);
             PatchCinematicSampling(harmony, behaviorType);
-        }
-
-        private static void PatchQueueCapacity(Harmony harmony, Type behaviorType, string methodName)
-        {
-            MethodInfo method = AccessTools.Method(behaviorType, methodName);
-            MethodInfo transpiler = AccessTools.Method(
-                typeof(ConcentratedImpactSafetyPatch),
-                nameof(QueueCapacityTranspiler));
-            if (method == null || transpiler == null) return;
-
-            try
-            {
-                harmony.Patch(
-                    method,
-                    transpiler: new HarmonyMethod(transpiler) { priority = Priority.First });
-            }
-            catch { }
-        }
-
-        private static IEnumerable<CodeInstruction> QueueCapacityTranspiler(
-            IEnumerable<CodeInstruction> instructions)
-        {
-            foreach (CodeInstruction instruction in instructions)
-            {
-                if (!TryReadInt32Constant(instruction, out int value) ||
-                    value != OriginalCollisionQueueCapacity)
-                {
-                    yield return instruction;
-                    continue;
-                }
-
-                CodeInstruction replacement = new CodeInstruction(
-                    OpCodes.Ldc_I4,
-                    SafeCollisionQueueCapacity);
-                CopyMetadata(instruction, replacement);
-                yield return replacement;
-            }
         }
 
         private static void PatchMissileHitFatalCheck(Harmony harmony, Type behaviorType)
@@ -371,35 +327,6 @@ namespace GuidedArrow.Progression
             return argumentIndex <= byte.MaxValue
                 ? new CodeInstruction(OpCodes.Ldarga_S, (byte)argumentIndex)
                 : new CodeInstruction(OpCodes.Ldarga, (short)argumentIndex);
-        }
-
-        private static bool TryReadInt32Constant(CodeInstruction instruction, out int value)
-        {
-            value = 0;
-            if (instruction == null) return false;
-
-            if (instruction.opcode == OpCodes.Ldc_I4_M1) { value = -1; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_0) { value = 0; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_1) { value = 1; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_2) { value = 2; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_3) { value = 3; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_4) { value = 4; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_5) { value = 5; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_6) { value = 6; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_7) { value = 7; return true; }
-            if (instruction.opcode == OpCodes.Ldc_I4_8) { value = 8; return true; }
-            if (instruction.opcode != OpCodes.Ldc_I4 && instruction.opcode != OpCodes.Ldc_I4_S)
-                return false;
-
-            try
-            {
-                value = Convert.ToInt32(instruction.operand);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         private static void CopyMetadata(CodeInstruction source, CodeInstruction destination)
