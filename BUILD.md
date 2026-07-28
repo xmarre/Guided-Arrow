@@ -36,7 +36,7 @@ The maintained `GuidedArrow.Progression` project contains:
 - exact live-registry validation for stable-core missile wrappers;
 - deferred and removal-safe Autoguidance target transitions.
 
-## v1.3.1 runtime model
+## v1.3.2 runtime model
 
 The normal Guided Arrow MCM settings are never Harmony-patched at getter level. During a Guided Arrow mission callback, the sidecar temporarily applies the effective mastery limits to the settings backing fields and restores every original value in a Harmony finalizer. This keeps the MCM page stable and makes the configured values upper limits for progression.
 
@@ -46,12 +46,12 @@ Before stable-core guidance and projectile-camera entry points execute, the side
 
 A penetration collision no longer performs full target collection, skeleton/head lookup or route assignment inside the native collision callback. The impacted target is recorded as consumed through managed references, the current target is cleared when necessary, and the existing fallback direction is retained. Planned-route advancement or fresh target selection then occurs through the normal display-tick path after the original projectile has survived native pass-through or a synthetic continuation has been created.
 
-The desired continuation exit distance is calculated synchronously during the original collision callback while the victim is still live. Only that float survives into the deferred worker. Synthetic continuation creation therefore preserves the previous depth-aware offset without reading the old victim's position, AgentVisuals or native entity on the following tick. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
+Synthetic continuation creation uses only managed collision position and direction values with a fixed 1.25-metre exit distance. The collision callback does not read `Agent.Position`, `AgentVisuals` or any victim native entity. Mastery range accounting likewise uses the collision position and the core's cached shot origin rather than victim or shooter position pointers. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
 
 ## Outputs
 
-- `dist/GuidedArrow-v1.3.1-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
-- `dist/GuidedArrow-v1.3.1-SOURCE.zip`
+- `dist/GuidedArrow-v1.3.2-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
+- `dist/GuidedArrow-v1.3.2-SOURCE.zip`
 - `checksums/SHA256SUMS.txt`
 
 The source archive excludes build intermediates and includes the current source, module tree, solution, documentation and build script.
