@@ -10,7 +10,7 @@ $ProgressionBuildOut = Join-Path $Artifacts "progression-build"
 $Stage = Join-Path $Artifacts "stage"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
-$Version = "1.3.1"
+$Version = "1.3.2"
 $ExpectedCoreSha256 = "0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0"
 
 Remove-Item $Artifacts -Recurse -Force -ErrorAction SilentlyContinue
