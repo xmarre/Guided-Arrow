@@ -33,7 +33,9 @@ Native/TOR ability arrows are never removed or replaced. The configured Guided A
 Native ability arrows remain on TOR/native collision and penetration handling. Added followers use Guided Arrow's hardened synthetic penetration path.
 
 SAME-TICK IMPACT SAFETY
-The core's pending collision and early-reaction queues now retain up to 256 entries instead of 32, preserving every callback in 48-arrow and larger concentrated volleys.
+Missile wrappers waiting for a collision reaction are quarantined before the core's mission-tick position, velocity and steering calls.
+Registry refresh and leader/camera ownership repair resume after the collision reaction or timeout resolves.
 Repeated impacts on one victim reuse managed collision positions rather than repeatedly reading that victim's native skeleton or health while removal may be starting.
 Cinematic subject records detach from removed agents and retain their last safe impact position.
+The experimental collision-queue expansion was removed after equal 32-arrow and 48-arrow results ruled out that boundary.
 The per-arrow consumed-target list only prevents that individual Autoguidance projectile from reacquiring a target it already hit.
