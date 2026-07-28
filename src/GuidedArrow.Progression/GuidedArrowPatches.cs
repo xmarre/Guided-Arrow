@@ -23,13 +23,12 @@ namespace GuidedArrow.Progression
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
+
+            // Run the load guard before the core or the continuation safety layer can cross
+            // Mission.AddCustomMissile during a concentrated same-shooter projectile burst.
+            ConcentratedVolleyContinuationGuardPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
-
-            // The trace-recorded native volley sequence (PassThrough then Stick on the same tracked
-            // leader) returns normally instead of entering the core kill-cinematic state. Ordinary
-            // single-shot and synthetic split cinematics remain unchanged.
-            ConcentratedVolleyCinematicBypassPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
             if (settingsType != null)
