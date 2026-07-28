@@ -4,6 +4,12 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 
+namespace System.Runtime.CompilerServices
+{
+    [AttributeUsage(AttributeTargets.Method, Inherited = false)]
+    internal sealed class ModuleInitializerAttribute : Attribute { }
+}
+
 namespace GuidedArrow.Progression
 {
     /// <summary>
@@ -21,6 +27,36 @@ namespace GuidedArrow.Progression
 
         private static readonly ConditionalWeakTable<object, Marker> BypassedInstances =
             new ConditionalWeakTable<object, Marker>();
+
+        [ModuleInitializer]
+        internal static void InitializeModule()
+        {
+            try
+            {
+                Assembly guidedArrowAssembly = null;
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (assembly.GetName().Name == "GuidedArrow")
+                    {
+                        guidedArrowAssembly = assembly;
+                        break;
+                    }
+                }
+
+                Type behaviorType = guidedArrowAssembly?.GetType(
+                    "GuidedArrow.GuidedArrowBehavior",
+                    false);
+                if (behaviorType == null) return;
+
+                Install(
+                    new Harmony("guidedarrow.progression.impact-isolation-diagnostic"),
+                    behaviorType);
+            }
+            catch
+            {
+                // A diagnostic patch must never block module loading.
+            }
+        }
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
@@ -44,7 +80,7 @@ namespace GuidedArrow.Progression
                 {
                     harmony.Patch(
                         method,
-                        prefix: new HarmonyMethod(impactPrefix) { priority = Priority.First });
+                        prefix: new HarmonyMethod(impactPrefix) { priority = int.MaxValue });
                 }
                 catch { }
             }
@@ -65,7 +101,7 @@ namespace GuidedArrow.Progression
                             method,
                             prefix: new HarmonyMethod(suppressAfterImpactPrefix)
                             {
-                                priority = Priority.First
+                                priority = int.MaxValue
                             });
                     }
                     catch { }
