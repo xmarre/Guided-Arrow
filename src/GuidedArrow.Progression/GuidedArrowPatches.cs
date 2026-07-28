@@ -25,6 +25,10 @@ namespace GuidedArrow.Progression
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
+
+            // The trace-recorded native volley sequence (PassThrough then Stick on the same tracked
+            // leader) returns normally instead of entering the core kill-cinematic state. Ordinary
+            // single-shot and synthetic split cinematics remain unchanged.
             ConcentratedVolleyCinematicBypassPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
