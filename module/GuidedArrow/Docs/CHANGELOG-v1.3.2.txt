@@ -1,6 +1,8 @@
 GUIDED ARROW v1.3.2
 
-- Raised pending collision and early-reaction capacity from 32 to 256 for concentrated same-tick volleys.
+- Quarantined pending-collision missile wrappers before mission-tick position, velocity and steering calls.
+- Deferred registry refresh and ownership repair until pending collision reactions resolve.
+- Removed the experimental collision-queue expansion after threshold testing ruled it out.
 - Reused managed impact positions instead of repeatedly sampling the same victim's native skeleton.
 - Replaced post-impact Agent health reads with the collision packet's fatal-damage flag.
 - Detached cinematic subjects when agent removal begins so later camera ticks use stored positions.
