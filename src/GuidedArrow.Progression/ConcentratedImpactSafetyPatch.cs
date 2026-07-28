@@ -232,6 +232,27 @@ namespace GuidedArrow.Progression
                 }
                 catch { }
             }
+
+            MethodInfo removalPostfix = AccessTools.Method(
+                typeof(ConcentratedImpactSafetyPatch),
+                nameof(AgentRemovalPostfix));
+            if (removalPostfix == null) return;
+
+            foreach (string callback in new[] { "OnEarlyAgentRemoved", "OnAgentRemoved", "OnAgentDeleted" })
+            {
+                foreach (MethodInfo method in behaviorType
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(candidate => candidate.Name == callback && !candidate.IsAbstract))
+                {
+                    try
+                    {
+                        harmony.Patch(
+                            method,
+                            postfix: new HarmonyMethod(removalPostfix) { priority = Priority.Last });
+                    }
+                    catch { }
+                }
+            }
         }
 
         private static bool TrackCinematicSubjectPrefix(object __instance, object[] __args)
@@ -275,6 +296,23 @@ namespace GuidedArrow.Progression
             {
                 return true;
             }
+        }
+
+        private static void AgentRemovalPostfix(object __instance, object[] __args)
+        {
+            if (__instance == null || __args == null) return;
+
+            Agent victim = __args.OfType<Agent>().FirstOrDefault();
+            if (victim == null || !TryFindCinematicSubject(__instance, victim, out object subject))
+                return;
+
+            try
+            {
+                // Once removal has started, only the managed last-known impact position is safe.
+                // The core's later cinematic ticks must not re-enter the removed agent's visuals.
+                _subjectAgentField.SetValue(subject, null);
+            }
+            catch { }
         }
 
         private static bool TryFindCinematicSubject(object instance, Agent victim, out object subject)
