@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
@@ -10,6 +11,7 @@ namespace GuidedArrow.Progression
     {
         private static FieldInfo _generationField;
         private static FieldInfo _shooterField;
+        private static FieldInfo _shotOriginField;
         private static FieldInfo _cameraMissileIndexField;
         private static MethodInfo _autoguidanceRuntimeMethod;
         private static PropertyInfo _trackedIndexProperty;
@@ -34,6 +36,7 @@ namespace GuidedArrow.Progression
         {
             _generationField = AccessTools.Field(behaviorType, "_activeShotGeneration");
             _shooterField = AccessTools.Field(behaviorType, "_activeShotShooter");
+            _shotOriginField = AccessTools.Field(behaviorType, "_pendingShotPosition");
             _cameraMissileIndexField = AccessTools.Field(behaviorType, "_cameraMissileIndex");
             _autoguidanceRuntimeMethod = AccessTools.Method(behaviorType, "IsAutoguidanceRuntimeActive");
 
@@ -206,7 +209,7 @@ namespace GuidedArrow.Progression
 
                 int generation = _generationField != null ? (int)_generationField.GetValue(__instance) : 0;
                 bool killed = victim.Health <= 0.01f;
-                float distance = (victim.Position - shooter.Position).Length;
+                float distance = ReadManagedHitDistance(__instance, __args);
                 float multiplier = 1f;
 
                 if (_autoguidanceRuntimeMethod != null)
@@ -219,6 +222,24 @@ namespace GuidedArrow.Progression
                 progression.RecordGuidedHit(generation, victim.Index, killed, distance, multiplier);
             }
             catch { }
+        }
+
+        private static float ReadManagedHitDistance(object instance, object[] args)
+        {
+            if (instance == null || args == null || args.Length <= 4 || _shotOriginField == null)
+                return 0f;
+
+            try
+            {
+                if (!(args[4] is AttackCollisionData collision)) return 0f;
+                Vec3 shotOrigin = (Vec3)_shotOriginField.GetValue(instance);
+                float distance = (collision.CollisionGlobalPosition - shotOrigin).Length;
+                return float.IsNaN(distance) || float.IsInfinity(distance) ? 0f : Math.Max(0f, distance);
+            }
+            catch
+            {
+                return 0f;
+            }
         }
 
         private static bool IsEnemy(Agent victim, Agent shooter)
