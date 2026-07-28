@@ -2,8 +2,12 @@
 
 ## 1.3.2
 
+- Raises the core's pending collision-context and early-reaction capacities from 32 to 256 so concentrated volleys do not evict live missile/reaction correlation state before Bannerlord delivers every callback.
+- Reuses the managed impact position when an already-tracked victim is struck repeatedly, avoiding repeated skeleton and bone queries while that victim may be entering native teardown.
+- Replaces post-impact `Agent.Health` reads in the core and mastery callback with the collision packet's fatal-damage flag, resolved through the runtime API for cross-version compatibility.
+- Detaches cinematic subject records when agent removal begins so later camera ticks fall back to the stored impact position instead of reading removed native visuals.
 - Removes the collision-callback depth probe that read `Agent.Position` through a native position pointer while concentrated volleys were resolving against the same victim.
-- Uses the existing fixed 1.25-metre continuation exit distance from managed collision position and direction data, while retaining one synthetic continuation spawn per mission tick.
+- Uses the fixed 1.25-metre continuation exit distance from managed collision position and direction data, while retaining one synthetic continuation spawn per mission tick.
 - Calculates mastery range bonuses from the collision position and the core's cached shot origin instead of reading victim and shooter native positions after a hit.
 - Retains the byte-identical verified v1.1.17 gameplay core and limits the fix to the maintained sidecar.
 
