@@ -15,9 +15,11 @@ namespace GuidedArrow.Progression
     /// <summary>
     /// Keeps concentrated split-volley impacts inside managed lifetime boundaries.
     ///
-    /// The verified core queried the impacted missile entity and victim skeleton after native
+    /// The verified core queried the impacted missile entity and victim health after native
     /// collision processing had already started. A managed wrapper can still exist at that point
     /// while its underlying native missile or agent presentation handle is no longer safe to read.
+    /// Cinematic sampling is intentionally left on the core's original live-ragdoll path; replacing
+    /// it with a permanent impact-position cache makes the kill camera static.
     /// </summary>
     internal static class ConcentratedImpactSafetyPatch
     {
@@ -26,37 +28,15 @@ namespace GuidedArrow.Progression
         private static MethodInfo _agentHealthGetter;
         private static MethodInfo _collisionFatalDamageGetter;
         private static MethodInfo _missileEntityGetter;
-        private static Type _cinematicSubjectType;
-        private static FieldInfo _cinematicSubjectsField;
-        private static FieldInfo _impactPositionField;
-        private static FieldInfo _subjectAgentField;
-        private static FieldInfo _subjectLastKnownPositionField;
-        private static FieldInfo _subjectHasLastKnownPositionField;
-
-        private static readonly Dictionary<Agent, Vec3> ManagedVictimPositions =
-            new Dictionary<Agent, Vec3>(AgentReferenceComparer.Instance);
-
-        private sealed class AgentReferenceComparer : IEqualityComparer<Agent>
-        {
-            internal static readonly AgentReferenceComparer Instance = new AgentReferenceComparer();
-
-            public bool Equals(Agent x, Agent y)
-            {
-                return ReferenceEquals(x, y);
-            }
-
-            public int GetHashCode(Agent obj)
-            {
-                return obj == null ? 0 : RuntimeHelpers.GetHashCode(obj);
-            }
-        }
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
             if (harmony == null || behaviorType == null) return;
 
+            // Keep only the two exact OnMissileHit lifetime substitutions. Earlier diagnostics
+            // proved that permanently replacing cinematic victim sampling with the collision point
+            // was not the failure fix and regressed the live cinematic kill cameras.
             PatchMissileHitLifetimeReads(harmony, behaviorType);
-            PatchCinematicSampling(harmony, behaviorType);
         }
 
         private static void PatchMissileHitLifetimeReads(Harmony harmony, Type behaviorType)
@@ -205,223 +185,6 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static void PatchCinematicSampling(Harmony harmony, Type behaviorType)
-        {
-            _cinematicSubjectType = behaviorType.GetNestedType(
-                "CinematicSubjectRecord",
-                BindingFlags.Public | BindingFlags.NonPublic);
-            if (_cinematicSubjectType == null) return;
-
-            _cinematicSubjectsField = AccessTools.Field(behaviorType, "_cinematicSubjects");
-            _impactPositionField = AccessTools.Field(behaviorType, "_impactPosition");
-            _subjectAgentField = AccessTools.Field(_cinematicSubjectType, "Agent");
-            _subjectLastKnownPositionField = AccessTools.Field(_cinematicSubjectType, "LastKnownPosition");
-            _subjectHasLastKnownPositionField = AccessTools.Field(_cinematicSubjectType, "HasLastKnownPosition");
-            if (_cinematicSubjectsField == null ||
-                _impactPositionField == null ||
-                _subjectAgentField == null ||
-                _subjectLastKnownPositionField == null ||
-                _subjectHasLastKnownPositionField == null)
-                return;
-
-            PatchPrefix(
-                harmony,
-                AccessTools.Method(behaviorType, "TrackCinematicSubject", new[] { typeof(Agent), typeof(Vec3) }),
-                nameof(TrackCinematicSubjectPrefix));
-            PatchPrefix(
-                harmony,
-                AccessTools.Method(behaviorType, "SnapshotCinematicSubject", new[] { typeof(Agent) }),
-                nameof(SnapshotCinematicSubjectPrefix));
-            PatchPrefix(
-                harmony,
-                AccessTools.Method(behaviorType, "GetRagdollVisualPosition", new[] { typeof(Agent) }),
-                nameof(GetRagdollVisualPositionPrefix));
-
-            MethodInfo removalPostfix = AccessTools.Method(
-                typeof(ConcentratedImpactSafetyPatch),
-                nameof(AgentRemovalPostfix));
-            if (removalPostfix != null)
-            {
-                foreach (string callback in new[] { "OnEarlyAgentRemoved", "OnAgentRemoved", "OnAgentDeleted" })
-                {
-                    foreach (MethodInfo method in behaviorType
-                        .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                        .Where(candidate => candidate.Name == callback && !candidate.IsAbstract))
-                    {
-                        try
-                        {
-                            harmony.Patch(
-                                method,
-                                postfix: new HarmonyMethod(removalPostfix) { priority = Priority.Last });
-                        }
-                        catch { }
-                    }
-                }
-            }
-
-            MethodInfo resetPostfix = AccessTools.Method(
-                typeof(ConcentratedImpactSafetyPatch),
-                nameof(ResetPostfix));
-            foreach (MethodInfo method in behaviorType
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(candidate => candidate.Name == "ResetAll" && !candidate.IsAbstract))
-            {
-                if (resetPostfix == null) break;
-                try
-                {
-                    harmony.Patch(
-                        method,
-                        postfix: new HarmonyMethod(resetPostfix) { priority = Priority.Last });
-                }
-                catch { }
-            }
-        }
-
-        private static void PatchPrefix(Harmony harmony, MethodInfo original, string prefixName)
-        {
-            MethodInfo prefix = AccessTools.Method(typeof(ConcentratedImpactSafetyPatch), prefixName);
-            if (harmony == null || original == null || prefix == null) return;
-
-            try
-            {
-                harmony.Patch(
-                    original,
-                    prefix: new HarmonyMethod(prefix) { priority = Priority.First });
-            }
-            catch { }
-        }
-
-        private static bool TrackCinematicSubjectPrefix(object __instance, object[] __args)
-        {
-            if (__instance == null || __args == null || __args.Length < 2)
-                return true;
-
-            Agent victim = __args[0] as Agent;
-            if (victim == null) return false;
-
-            try
-            {
-                if (!TryFindCinematicSubject(__instance, victim, out object subject))
-                {
-                    IList subjects = _cinematicSubjectsField.GetValue(__instance) as IList;
-                    if (subjects == null) return true;
-
-                    subject = Activator.CreateInstance(_cinematicSubjectType, true);
-                    _subjectAgentField.SetValue(subject, victim);
-                    subjects.Add(subject);
-                }
-
-                Vec3 safePosition = ResolveManagedImpactPosition(__instance, __args[1], subject);
-                _subjectLastKnownPositionField.SetValue(subject, safePosition);
-                _subjectHasLastKnownPositionField.SetValue(subject, true);
-                ManagedVictimPositions[victim] = safePosition;
-                return false;
-            }
-            catch
-            {
-                // Preserve the core path only when the managed record itself could not be created.
-                return true;
-            }
-        }
-
-        private static bool SnapshotCinematicSubjectPrefix(object __instance, object[] __args)
-        {
-            if (__instance == null || __args == null || __args.Length == 0)
-                return true;
-
-            Agent victim = __args[0] as Agent;
-            if (victim == null || !TryFindCinematicSubject(__instance, victim, out _))
-                return true;
-
-            // An existing subject remains on its managed cached-position path. Falling through would
-            // query native bones while the impact or removal callback is still active.
-            return false;
-        }
-
-        private static bool GetRagdollVisualPositionPrefix(Agent __0, ref Vec3 __result)
-        {
-            if (__0 == null || !ManagedVictimPositions.TryGetValue(__0, out Vec3 cachedPosition) ||
-                !IsFinite(cachedPosition))
-                return true;
-
-            __result = cachedPosition;
-            return false;
-        }
-
-        private static Vec3 ResolveManagedImpactPosition(object instance, object fallbackBox, object subject)
-        {
-            if (fallbackBox is Vec3 fallbackPosition && IsFinite(fallbackPosition))
-                return fallbackPosition;
-
-            try
-            {
-                object impact = _impactPositionField.GetValue(instance);
-                if (impact is Vec3 impactPosition && IsFinite(impactPosition))
-                    return impactPosition;
-            }
-            catch { }
-
-            try
-            {
-                object cached = _subjectLastKnownPositionField.GetValue(subject);
-                if (cached is Vec3 cachedPosition && IsFinite(cachedPosition))
-                    return cachedPosition;
-            }
-            catch { }
-
-            return Vec3.Zero;
-        }
-
-        private static void AgentRemovalPostfix(object __instance, object[] __args)
-        {
-            if (__instance == null || __args == null) return;
-
-            Agent victim = __args.OfType<Agent>().FirstOrDefault();
-            if (victim == null || !TryFindCinematicSubject(__instance, victim, out object subject))
-                return;
-
-            try
-            {
-                // Keep ManagedVictimPositions until ResetAll because the cinematic path can retain
-                // the Agent wrapper after native removal. Only detach the subject's live reference.
-                _subjectAgentField.SetValue(subject, null);
-            }
-            catch { }
-        }
-
-        private static void ResetPostfix()
-        {
-            ManagedVictimPositions.Clear();
-        }
-
-        private static bool TryFindCinematicSubject(object instance, Agent victim, out object subject)
-        {
-            subject = null;
-            if (instance == null || victim == null || _cinematicSubjectsField == null)
-                return false;
-
-            try
-            {
-                IList subjects = _cinematicSubjectsField.GetValue(instance) as IList;
-                if (subjects == null) return false;
-
-                for (int i = 0; i < subjects.Count; i++)
-                {
-                    object candidate = subjects[i];
-                    if (candidate == null) continue;
-
-                    Agent candidateAgent = _subjectAgentField.GetValue(candidate) as Agent;
-                    if (!ReferenceEquals(candidateAgent, victim)) continue;
-
-                    subject = candidate;
-                    return true;
-                }
-            }
-            catch { }
-
-            return false;
-        }
-
         private static bool CallsMethod(CodeInstruction instruction, MethodInfo method)
         {
             if (instruction == null || method == null) return false;
@@ -457,16 +220,6 @@ namespace GuidedArrow.Progression
             if (source == null || destination == null) return;
             destination.labels.AddRange(source.labels);
             destination.blocks.AddRange(source.blocks);
-        }
-
-        private static bool IsFinite(Vec3 value)
-        {
-            return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
-        }
-
-        private static bool IsFinite(float value)
-        {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
     }
 }
