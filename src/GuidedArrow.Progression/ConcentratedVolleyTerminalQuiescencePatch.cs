@@ -134,9 +134,9 @@ namespace GuidedArrow.Progression
             catch { }
         }
 
-        private static bool TerminalObserverPrefix(object __instance)
+        private static bool TerminalObserverPrefix(object __0)
         {
-            return !IsTerminalDeferred(__instance);
+            return !IsTerminalDeferred(__0);
         }
 
         private static void ImpactPrefix(object __instance)
