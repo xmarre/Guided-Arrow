@@ -2,7 +2,10 @@
 
 ## 1.3.2
 
-- Raises the core's pending collision-context and early-reaction capacities from 32 to 256 so concentrated volleys do not evict live missile/reaction correlation state before Bannerlord delivers every callback.
+- Quarantines tracked native missile wrappers while their collision reaction is pending, before the verified core can call `GetPosition`, `GetVelocity` or `SetVelocity` on a terminal impact handle.
+- Defers registry identity refresh and removal for pending-collision entries until Bannerlord has delivered the corresponding reaction or timeout.
+- Excludes pending-collision entries from leader and projectile-camera ownership repair.
+- Removes the experimental 32-to-256 collision-queue expansion after equal 32-arrow and 48-arrow results ruled out the queue boundary as the failure trigger.
 - Reuses the managed impact position when an already-tracked victim is struck repeatedly, avoiding repeated skeleton and bone queries while that victim may be entering native teardown.
 - Replaces post-impact `Agent.Health` reads in the core and mastery callback with the collision packet's fatal-damage flag, resolved through the runtime API for cross-version compatibility.
 - Detaches cinematic subject records when agent removal begins so later camera ticks fall back to the stored impact position instead of reading removed native visuals.
