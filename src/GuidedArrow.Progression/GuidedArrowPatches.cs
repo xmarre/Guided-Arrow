@@ -61,6 +61,7 @@ namespace GuidedArrow.Progression
             NativeSiblingMasteryPatch.Install(harmony, behaviorType);
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
+            AwaitingCollisionMissileGuardPatch.Install(harmony, behaviorType);
             ConcentratedImpactSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
