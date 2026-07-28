@@ -17,9 +17,8 @@ namespace GuidedArrow.Progression
             Type behaviorType = assembly.GetType("GuidedArrow.GuidedArrowBehavior", false);
             if (behaviorType == null) return;
 
-            // Progression settings remain shot-scoped. Penetration settings are restored to their
-            // original configured values before the core executes the shot, so concentrated volleys
-            // do not all enter progression's budget-exhausted native teardown path at once.
+            // Preserve the exact currently reproducing runtime. The diagnostic trace below records
+            // concentrated-volley lifecycle transitions without suppressing or mutating behavior.
             if (settingsType != null)
                 ProgressionRuntimeSettingsPatch.Install(harmony, behaviorType, settingsType);
 
@@ -33,6 +32,8 @@ namespace GuidedArrow.Progression
 
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
+
+            ConcentratedVolleyTracePatch.Install(harmony, behaviorType, settingsType);
         }
     }
 }
