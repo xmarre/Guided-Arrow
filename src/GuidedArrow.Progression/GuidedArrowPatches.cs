@@ -272,7 +272,7 @@ namespace GuidedArrow.Progression
         {
             Team victimTeam = victim?.Team;
             Team shooterTeam = shooter?.Team;
-            if (victimTeam == null || shooterTeam == null) return true;
+            if (victimTeam == null || shooterTeam == null) return false;
 
             try { return victimTeam.IsEnemyOf(shooterTeam); }
             catch { return victimTeam != shooterTeam; }
