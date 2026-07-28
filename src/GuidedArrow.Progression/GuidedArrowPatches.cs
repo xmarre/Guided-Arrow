@@ -55,9 +55,10 @@ namespace GuidedArrow.Progression
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
 
-            // Keep mastery XP outside MissionBehavior.OnAgentHit. The progression hit-accounting
-            // patch captures the core impact arguments and awards XP on the next display tick.
-            ProgressionHitAccountingPatch.Install(harmony, behaviorType);
+            // Deliberately do not install ProgressionHitAccountingPatch in this isolation build.
+            // All purchased-skill effects remain active, but no progression code runs from the
+            // OnMissileHit callback or the following display tick. This separates the mastery
+            // gameplay layer from battle-XP accounting without reverting the terminal-handoff fix.
 
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
