@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using HarmonyLib;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
@@ -24,20 +23,11 @@ namespace GuidedArrow.Progression
         private static FieldInfo _impactDirectionField;
         private static FieldInfo _trackedMissileNativeMissileField;
         private static FieldInfo _trackedMissileIndexField;
-        private static FieldInfo _pendingCollisionContextsField;
         private static FieldInfo _pendingContinuationSpawnsField;
         private static FieldInfo _trackedMissilesField;
         private static FieldInfo _leaderMissileField;
         private static FieldInfo _leaderIndexField;
         private static FieldInfo _cameraMissileIndexField;
-
-        private static readonly ConditionalWeakTable<object, ExitDistanceSnapshot> ExitDistanceSnapshots =
-            new ConditionalWeakTable<object, ExitDistanceSnapshot>();
-
-        private sealed class ExitDistanceSnapshot
-        {
-            internal float DesiredExitDistance;
-        }
 
         private sealed class ContinuationPatchState
         {
@@ -76,7 +66,6 @@ namespace GuidedArrow.Progression
             _impactDirectionField = AccessTools.Field(contextType, "ImpactDirection");
             _trackedMissileNativeMissileField = AccessTools.Field(trackedType, "Missile");
             _trackedMissileIndexField = AccessTools.Field(trackedType, "Index");
-            _pendingCollisionContextsField = AccessTools.Field(behaviorType, "_pendingCollisionContexts");
             _pendingContinuationSpawnsField = AccessTools.Field(behaviorType, "_pendingContinuationSpawns");
             _trackedMissilesField = AccessTools.Field(behaviorType, "_trackedMissiles");
             _leaderMissileField = AccessTools.Field(behaviorType, "_missile");
@@ -89,25 +78,6 @@ namespace GuidedArrow.Progression
                 _trackedMissileNativeMissileField == null ||
                 _trackedMissileIndexField == null)
                 return;
-
-            MethodInfo queueContextMethod = behaviorType
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(method =>
-                    method.Name == "QueuePendingCollisionContext" &&
-                    method.GetParameters().Length == 6);
-            MethodInfo capturePostfix = AccessTools.Method(
-                typeof(PenetrationContinuationSafetyPatch),
-                nameof(CaptureExitDistancePostfix));
-            if (queueContextMethod != null && capturePostfix != null && _pendingCollisionContextsField != null)
-            {
-                try
-                {
-                    harmony.Patch(
-                        queueContextMethod,
-                        postfix: new HarmonyMethod(capturePostfix) { priority = Priority.Last });
-                }
-                catch { }
-            }
 
             try
             {
@@ -139,53 +109,6 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static void CaptureExitDistancePostfix(object __instance, object[] __args)
-        {
-            if (__instance == null || __args == null || __args.Length < 6 || _pendingCollisionContextsField == null)
-                return;
-
-            try
-            {
-                IList contexts = _pendingCollisionContextsField.GetValue(__instance) as IList;
-                if (contexts == null || contexts.Count == 0) return;
-
-                // QueuePendingCollisionContext removes the old entry for this missile and appends the
-                // new one. Capture against that exact newly created context while OnMissileHit still
-                // owns a live victim; the collision-reaction callback may run after victim teardown.
-                object context = contexts[contexts.Count - 1];
-                if (context == null) return;
-
-                Agent victim = __args[2] as Agent;
-                Vec3 impactPosition = (Vec3)__args[3];
-                Vec3 impactVelocity = (Vec3)__args[4];
-                Vec3 impactDirection = (Vec3)__args[5];
-
-                if (!TryComputeNormalizedDirection(impactVelocity, impactDirection, out Vec3 direction))
-                    return;
-
-                float desiredExitDistance = SafeContinuationExitDistance;
-                if (victim != null)
-                {
-                    Vec3 victimDelta = victim.Position - impactPosition;
-                    float centreDepth =
-                        victimDelta.x * direction.x +
-                        victimDelta.y * direction.y +
-                        victimDelta.z * direction.z;
-                    if (IsFinite(centreDepth))
-                        desiredExitDistance = Clamp(centreDepth + 0.95f, 1f, 2.5f);
-                }
-
-                ExitDistanceSnapshots.Remove(context);
-                ExitDistanceSnapshots.Add(
-                    context,
-                    new ExitDistanceSnapshot { DesiredExitDistance = desiredExitDistance });
-            }
-            catch
-            {
-                // Fallback distance is used if the early managed snapshot cannot be captured.
-            }
-        }
-
         private static bool SpawnPrefix(object[] __args, ref bool __result, out ContinuationPatchState __state)
         {
             __state = null;
@@ -209,17 +132,11 @@ namespace GuidedArrow.Progression
                 }
 
                 float desiredExitDistance = SafeContinuationExitDistance;
-                if (ExitDistanceSnapshots.TryGetValue(context, out ExitDistanceSnapshot snapshot) &&
-                    snapshot != null &&
-                    IsFinite(snapshot.DesiredExitDistance))
-                {
-                    desiredExitDistance = Clamp(snapshot.DesiredExitDistance, 1f, 2.5f);
-                }
-                ExitDistanceSnapshots.Remove(context);
 
-                // The stable core already advances 0.42 m. Apply only the remaining distance. The
-                // distance was captured during OnMissileHit and is now pure managed data; this
-                // deferred worker never dereferences the old victim or its native presentation.
+                // Agent.Position is backed by a native position pointer. A concentrated volley can
+                // deliver later callbacks after an earlier impact has started victim teardown, so
+                // continuation placement must use only collision value data and a fixed safe exit.
+                // The stable core already advances 0.42 m; apply only the remaining distance.
                 float additionalOffset = Math.Max(0f, desiredExitDistance - CoreContinuationOffset);
                 _impactPositionField.SetValue(context, impactPosition + direction * additionalOffset);
 
@@ -233,7 +150,6 @@ namespace GuidedArrow.Progression
             }
             catch
             {
-                ExitDistanceSnapshots.Remove(context);
                 // Do not let the uncorrected continuation spawn inside an agent.
                 __state = null;
                 __result = false;
@@ -275,8 +191,8 @@ namespace GuidedArrow.Progression
                 __result = false;
 
             // Do not call AgentVisuals.GetEntity or PassThroughEntity here. The continuation is
-            // already created beyond the captured victim depth, while that victim's native
-            // presentation may have been destroyed before this deferred worker runs.
+            // already created beyond the fixed safe exit distance, while the previous victim's
+            // native presentation may have been destroyed before this deferred worker runs.
         }
 
         private static void DeferredPrefix(object __instance, out DeferredBatchState __state)
@@ -449,11 +365,6 @@ namespace GuidedArrow.Progression
         private static bool IsFinite(Vec3 value)
         {
             return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
-        }
-
-        private static float Clamp(float value, float minimum, float maximum)
-        {
-            return Math.Max(minimum, Math.Min(maximum, value));
         }
     }
 }
