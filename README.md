@@ -15,7 +15,7 @@ The supplied v1.1.17 clean archive did not include the original core source. A r
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.2 retains the v1.3.1 live-missile validation and deferred retargeting, and removes the remaining native Agent reads from concentrated impact callbacks. Penetration continuations now use a fixed managed 1.25-metre exit distance instead of probing `Agent.Position` during the collision burst. Mastery hit range is calculated from the collision value data and the core's cached shot origin. The stable v1.1.17 core remains byte-identical.
+v1.3.2 retains the v1.3.1 live-missile validation and deferred retargeting. The verified core stored only 32 pending collision contexts and 32 early collision reactions, so a 48-projectile same-tick impact could evict 16 live correlation records before their native callbacks arrived. The sidecar raises both capacities to 256, reuses managed impact positions for repeated hits on an already-tracked victim, replaces post-impact `Agent.Health` reads with the collision packet's fatal-damage flag, and detaches cinematic subject records as soon as agent removal begins. Penetration continuations use a fixed managed 1.25-metre exit distance. The per-missile Autoguidance consumed-target list remains responsible only for preventing that one missile from reacquiring a previously hit target.
 
 ## Repository layout
 
