@@ -27,6 +27,7 @@ namespace GuidedArrow.Progression
         private static int _collisionArgumentIndex = -1;
         private static int _victimArgumentIndex = -1;
         private static MethodInfo _agentHealthGetter;
+        private static MethodInfo _collisionFatalDamageGetter;
         private static FieldInfo _cinematicSubjectsField;
         private static FieldInfo _subjectAgentField;
         private static FieldInfo _subjectLastKnownPositionField;
@@ -108,6 +109,7 @@ namespace GuidedArrow.Progression
             _collisionArgumentIndex = collisionParameterIndex + 1;
             _victimArgumentIndex = secondAgentParameterIndex + 1;
             _agentHealthGetter = AccessTools.PropertyGetter(typeof(Agent), nameof(Agent.Health));
+            _collisionFatalDamageGetter = AccessTools.PropertyGetter(typeof(AttackCollisionData), "IsFatalDamage");
 
             MethodInfo transpiler = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
@@ -157,7 +159,25 @@ namespace GuidedArrow.Progression
 
         private static float ReadFatalDamageAsHealthSentinel(ref AttackCollisionData collision)
         {
-            return collision.IsFatalDamage ? 0f : 1f;
+            return ReadCollisionFatalDamage(collision) ? 0f : 1f;
+        }
+
+        internal static bool ReadCollisionFatalDamage(object collisionBox)
+        {
+            if (collisionBox == null) return false;
+
+            try
+            {
+                if (_collisionFatalDamageGetter == null)
+                    _collisionFatalDamageGetter = AccessTools.PropertyGetter(typeof(AttackCollisionData), "IsFatalDamage");
+
+                object result = _collisionFatalDamageGetter?.Invoke(collisionBox, null);
+                return result is bool fatal && fatal;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void PatchCinematicSampling(Harmony harmony, Type behaviorType)
