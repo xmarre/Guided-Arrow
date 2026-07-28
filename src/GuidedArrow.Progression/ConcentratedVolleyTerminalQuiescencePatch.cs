@@ -104,6 +104,9 @@ namespace GuidedArrow.Progression
                     catch { }
                 }
             }
+
+            PatchTerminalObserver(harmony, typeof(ProgressionRuntimeSettingsPatch), "MarkRestorePostfix");
+            PatchTerminalObserver(harmony, typeof(ProgressionTerminalXpPatch), "CapturePrefix");
         }
 
         internal static bool IsTerminalDeferred(object instance)
@@ -112,6 +115,28 @@ namespace GuidedArrow.Progression
             return States.TryGetValue(instance, out BurstState state) &&
                    state != null &&
                    state.DeferringTerminal;
+        }
+
+        private static void PatchTerminalObserver(Harmony harmony, Type type, string methodName)
+        {
+            MethodInfo original = AccessTools.Method(type, methodName);
+            MethodInfo prefix = AccessTools.Method(
+                typeof(ConcentratedVolleyTerminalQuiescencePatch),
+                nameof(TerminalObserverPrefix));
+            if (original == null || prefix == null) return;
+
+            try
+            {
+                harmony.Patch(
+                    original,
+                    prefix: new HarmonyMethod(prefix) { priority = int.MaxValue });
+            }
+            catch { }
+        }
+
+        private static bool TerminalObserverPrefix(object __instance)
+        {
+            return !IsTerminalDeferred(__instance);
         }
 
         private static void ImpactPrefix(object __instance)
