@@ -32,13 +32,13 @@ namespace GuidedArrow.Progression
                     false);
                 if (behaviorType == null) return;
 
-                ImpactCameraTransitionSafetyPatch.Install(
-                    new Harmony("guidedarrow.progression.impact-camera-transition"),
-                    behaviorType);
+                Harmony harmony = new Harmony("guidedarrow.progression.post-impact-native-boundary");
+                ImpactCameraTransitionSafetyPatch.Install(harmony, behaviorType);
+                ImpactCinematicDeferralPatch.Install(harmony, behaviorType);
             }
             catch
             {
-                // The stable core remains available if this narrow patch cannot be installed.
+                // The stable core remains available if these narrow patches cannot be installed.
             }
         }
     }
