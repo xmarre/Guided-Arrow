@@ -33,4 +33,7 @@ Native/TOR ability arrows are never removed or replaced. The configured Guided A
 Native ability arrows remain on TOR/native collision and penetration handling. Added followers use Guided Arrow's hardened synthetic penetration path.
 
 SAME-TICK IMPACT SAFETY
-Large split volleys use a fixed managed continuation exit distance and avoid native victim-position reads while many arrows resolve against the same target in one mission tick.
+The core's pending collision and early-reaction queues now retain up to 256 entries instead of 32, preserving every callback in 48-arrow and larger concentrated volleys.
+Repeated impacts on one victim reuse managed collision positions rather than repeatedly reading that victim's native skeleton or health while removal may be starting.
+Cinematic subject records detach from removed agents and retain their last safe impact position.
+The per-arrow consumed-target list only prevents that individual Autoguidance projectile from reacquiring a target it already hit.
