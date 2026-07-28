@@ -28,6 +28,15 @@ jobs:
         shell: pwsh
         run: ./build.ps1
 
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GuidedArrow-build-log
+          path: artifacts/build.log
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
