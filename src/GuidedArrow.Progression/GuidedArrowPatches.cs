@@ -20,15 +20,13 @@ namespace GuidedArrow.Progression
             // Crash-containment mode:
             // progression remains available in campaign/UI data, but it no longer patches any
             // mission callback, runtime setting, penetration gate, target gate, split gate or
-            // impact/XPath accounting path. This makes an enabled progression save execute the
-            // exact same Guided Arrow mission runtime as progression disabled.
-            //
-            // Keep only the already-validated v1.3.1 safety and native-volley compatibility patches,
-            // none of which branch on ProgressionService.Enabled.
+            // impact/XP accounting path. This makes an enabled progression save execute the
+            // same Guided Arrow mission runtime as progression disabled.
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
+            FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
 
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
