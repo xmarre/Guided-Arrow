@@ -32,8 +32,8 @@ namespace GuidedArrow.Progression
                     false);
                 if (behaviorType == null) return;
 
-                FullImpactReplayDeferralPatch.Install(
-                    new Harmony("guidedarrow.progression.full-post-impact-replay"),
+                GenerationScopedImpactReplayPatch.Install(
+                    new Harmony("guidedarrow.progression.generation-scoped-impact-replay"),
                     behaviorType);
             }
             catch
