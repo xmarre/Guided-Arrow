@@ -226,12 +226,24 @@ namespace GuidedArrow.Progression
 
         private static float ReadManagedHitDistance(object instance, object[] args)
         {
-            if (instance == null || args == null || args.Length <= 4 || _shotOriginField == null)
+            if (instance == null || args == null || args.Length == 0 || _shotOriginField == null)
                 return 0f;
 
             try
             {
-                if (!(args[4] is AttackCollisionData collision)) return 0f;
+                AttackCollisionData collision = default;
+                bool foundCollision = false;
+                for (int i = 0; i < args.Length; i++)
+                {
+                    if (args[i] is AttackCollisionData candidate)
+                    {
+                        collision = candidate;
+                        foundCollision = true;
+                        break;
+                    }
+                }
+                if (!foundCollision) return 0f;
+
                 Vec3 shotOrigin = (Vec3)_shotOriginField.GetValue(instance);
                 float distance = (collision.CollisionGlobalPosition - shotOrigin).Length;
                 return float.IsNaN(distance) || float.IsInfinity(distance) ? 0f : Math.Max(0f, distance);
