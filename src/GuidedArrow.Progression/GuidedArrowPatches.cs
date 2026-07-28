@@ -2,16 +2,12 @@ using System;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
-using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
 {
     internal static class GuidedArrowPatches
     {
-        private static FieldInfo _generationField;
-        private static FieldInfo _shooterField;
         private static FieldInfo _cameraMissileIndexField;
-        private static MethodInfo _autoguidanceRuntimeMethod;
         private static PropertyInfo _trackedIndexProperty;
         private static FieldInfo _trackedIndexField;
         private static FieldInfo _trackedFormationSlotField;
@@ -20,7 +16,8 @@ namespace GuidedArrow.Progression
 
         internal static void Install(Harmony harmony)
         {
-            Assembly assembly = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(candidate => candidate.GetName().Name == "GuidedArrow");
+            Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(candidate => candidate.GetName().Name == "GuidedArrow");
             if (assembly == null) return;
 
             Type settingsType = assembly.GetType("GuidedArrow.Settings", false);
@@ -32,10 +29,7 @@ namespace GuidedArrow.Progression
 
         private static void PatchBehavior(Harmony harmony, Type behaviorType, Type settingsType)
         {
-            _generationField = AccessTools.Field(behaviorType, "_activeShotGeneration");
-            _shooterField = AccessTools.Field(behaviorType, "_activeShotShooter");
             _cameraMissileIndexField = AccessTools.Field(behaviorType, "_cameraMissileIndex");
-            _autoguidanceRuntimeMethod = AccessTools.Method(behaviorType, "IsAutoguidanceRuntimeActive");
 
             Type trackedType = behaviorType.GetNestedType("TrackedMissile", BindingFlags.NonPublic);
             if (trackedType != null)
@@ -45,7 +39,6 @@ namespace GuidedArrow.Progression
                 _trackedPenetrationsUsedField = AccessTools.Field(trackedType, "PenetrationsUsed");
             }
 
-            PatchAgentHit(harmony, behaviorType);
             PatchBoolResult(harmony, behaviorType, "IsSplitSiblingAcquisitionOpen", nameof(SplitSiblingOpenPostfix));
             PatchBoolResult(harmony, behaviorType, "ShouldBreakFormationForAutoguidance", nameof(BreakFormationPostfix));
             PatchBoolResult(harmony, behaviorType, "IsAgentPenetrationOverrideEnabled", nameof(PenetrationEnabledPostfix));
@@ -60,38 +53,9 @@ namespace GuidedArrow.Progression
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
-            PassThroughBudgetSafetyPatch.Install(harmony, behaviorType);
+            ProgressionHitAccountingPatch.Install(harmony, behaviorType);
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
-        }
-
-        private static void PatchAgentHit(Harmony harmony, Type behaviorType)
-        {
-            MethodInfo hit = behaviorType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(method => method.Name == "OnAgentHit");
-            if (hit == null) return;
-
-            Type declaringType = hit.DeclaringType;
-            if (declaringType != null)
-            {
-                Type[] parameterTypes = hit.GetParameters().Select(parameter => parameter.ParameterType).ToArray();
-                MethodInfo declaredHit = declaringType.GetMethod(
-                    hit.Name,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly,
-                    null,
-                    parameterTypes,
-                    null);
-                if (declaredHit != null) hit = declaredHit;
-            }
-
-            if (hit.IsAbstract) return;
-            try
-            {
-                harmony.Patch(
-                    hit,
-                    postfix: new HarmonyMethod(AccessTools.Method(typeof(GuidedArrowPatches), nameof(OnAgentHitPostfix))));
-            }
-            catch { }
         }
 
         private static void PatchBoolResult(Harmony harmony, Type type, string methodName, string postfixName)
@@ -99,7 +63,8 @@ namespace GuidedArrow.Progression
             MethodInfo postfix = AccessTools.Method(typeof(GuidedArrowPatches), postfixName);
             if (postfix == null) return;
 
-            foreach (MethodInfo method in type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            foreach (MethodInfo method in type
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Where(candidate => candidate.Name == methodName && candidate.ReturnType == typeof(bool)))
             {
                 try { harmony.Patch(method, postfix: new HarmonyMethod(postfix)); }
@@ -129,7 +94,8 @@ namespace GuidedArrow.Progression
         {
             if (!__result || !ProgressionService.Enabled || __instance == null || __args == null) return;
 
-            object tracked = __args.FirstOrDefault(argument => argument != null && argument.GetType().Name == "TrackedMissile");
+            object tracked = __args.FirstOrDefault(
+                argument => argument != null && argument.GetType().Name == "TrackedMissile");
             if (tracked == null) return;
 
             int synchronizedLevel = ProgressionService.Level(SkillId.SynchronizedHunt);
@@ -149,14 +115,19 @@ namespace GuidedArrow.Progression
             try
             {
                 int slot = (int)_trackedFormationSlotField.GetValue(tracked);
-                if (slot >= ProgressionBalance.SynchronizedProjectileCap(synchronizedLevel)) __result = false;
+                if (slot >= ProgressionBalance.SynchronizedProjectileCap(synchronizedLevel))
+                    __result = false;
             }
             catch { }
         }
 
         private static void RemainingPenetrationPostfix(object[] __args, ref bool __result)
         {
-            if (!__result || !ProgressionService.Enabled || __args == null || __args.Length == 0 || __args[0] == null)
+            if (!__result ||
+                !ProgressionService.Enabled ||
+                __args == null ||
+                __args.Length == 0 ||
+                __args[0] == null)
                 return;
 
             object tracked = __args[0];
@@ -179,63 +150,23 @@ namespace GuidedArrow.Progression
             if (_trackedIndexProperty == null && _trackedIndexField == null)
             {
                 Type type = tracked.GetType();
-                _trackedIndexProperty = type.GetProperty("Index", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                _trackedIndexField = type.GetField("Index", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                _trackedIndexProperty = type.GetProperty(
+                    "Index",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                _trackedIndexField = type.GetField(
+                    "Index",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             }
 
             try
             {
-                if (_trackedIndexProperty != null) return (int)_trackedIndexProperty.GetValue(tracked, null);
-                if (_trackedIndexField != null) return (int)_trackedIndexField.GetValue(tracked);
+                if (_trackedIndexProperty != null)
+                    return (int)_trackedIndexProperty.GetValue(tracked, null);
+                if (_trackedIndexField != null)
+                    return (int)_trackedIndexField.GetValue(tracked);
             }
             catch { }
             return -1;
-        }
-
-        private static void OnAgentHitPostfix(object __instance, object[] __args)
-        {
-            ProgressionCampaignBehavior progression = ProgressionService.Current;
-            if (progression == null || !progression.Enabled || __instance == null || __args == null) return;
-
-            try
-            {
-                Agent shooter = _shooterField?.GetValue(__instance) as Agent;
-                if (shooter == null || shooter != Agent.Main) return;
-
-                Agent victim = __args.OfType<Agent>().FirstOrDefault(candidate => candidate != null && candidate != shooter);
-                if (victim == null || !IsEnemy(victim, shooter)) return;
-
-                int generation = _generationField != null ? (int)_generationField.GetValue(__instance) : 0;
-                bool killed = victim.Health <= 0.01f;
-                float distance = (victim.Position - shooter.Position).Length;
-                float multiplier = 1f;
-
-                if (_autoguidanceRuntimeMethod != null)
-                {
-                    object active = _autoguidanceRuntimeMethod.Invoke(__instance, null);
-                    if (active is bool && (bool)active)
-                        multiplier = ProgressionBalance.AutoguidedXpMultiplier(ProgressionService.Level(SkillId.BorrowedFlight));
-                }
-
-                progression.RecordGuidedHit(generation, victim.Index, killed, distance, multiplier);
-            }
-            catch { }
-        }
-
-        private static bool IsEnemy(Agent victim, Agent shooter)
-        {
-            try
-            {
-                MethodInfo method = victim.GetType().GetMethod(
-                    "IsEnemyOf",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new[] { typeof(Agent) },
-                    null);
-                if (method != null) return (bool)method.Invoke(victim, new object[] { shooter });
-            }
-            catch { }
-            return victim.Team == null || shooter.Team == null || victim.Team != shooter.Team;
         }
     }
 }
