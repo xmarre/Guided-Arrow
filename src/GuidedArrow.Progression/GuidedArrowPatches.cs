@@ -17,23 +17,19 @@ namespace GuidedArrow.Progression
             Type behaviorType = assembly.GetType("GuidedArrow.GuidedArrowBehavior", false);
             if (behaviorType == null) return;
 
-            // Preserve the exact currently reproducing runtime. The diagnostic trace below records
-            // concentrated-volley lifecycle transitions without suppressing or mutating behavior.
             if (settingsType != null)
                 ProgressionRuntimeSettingsPatch.Install(harmony, behaviorType, settingsType);
 
-            PenetrationLifecycleIsolationPatch.Install(harmony, behaviorType);
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
+            ConcentratedVolleyTerminalQuiescencePatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
-
-            ConcentratedVolleyTracePatch.Install(harmony, behaviorType, settingsType);
         }
     }
 }
