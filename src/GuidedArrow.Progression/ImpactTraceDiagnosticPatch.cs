@@ -27,6 +27,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _generationField;
         private static FieldInfo _cameraMissileIndexField;
         private static FieldInfo _trackedMissilesField;
+        private static MethodInfo _fatalDamageGetter;
 
         [ThreadStatic]
         private static int _impactDepth;
@@ -39,6 +40,7 @@ namespace GuidedArrow.Progression
             _generationField = AccessTools.Field(behaviorType, "_activeShotGeneration");
             _cameraMissileIndexField = AccessTools.Field(behaviorType, "_cameraMissileIndex");
             _trackedMissilesField = AccessTools.Field(behaviorType, "_trackedMissiles");
+            _fatalDamageGetter = AccessTools.PropertyGetter(typeof(AttackCollisionData), "IsFatalDamage");
 
             ResetLog();
             Mark("TRACE_INSTALL core=" + behaviorType.Assembly.GetName().Version);
@@ -239,7 +241,7 @@ namespace GuidedArrow.Progression
                         values[i] = i + ":collision(index=" +
                                     collision.AffectorWeaponSlotOrMissileIndex +
                                     ",missile=" + collision.IsMissile +
-                                    ",fatal=" + collision.IsFatalDamage + ")";
+                                    ",fatal=" + ReadFatalDamage(collision) + ")";
                         continue;
                     }
 
@@ -257,6 +259,20 @@ namespace GuidedArrow.Progression
             catch
             {
                 return "args=unavailable";
+            }
+        }
+
+        private static bool ReadFatalDamage(AttackCollisionData collision)
+        {
+            try
+            {
+                object boxed = collision;
+                object result = _fatalDamageGetter?.Invoke(boxed, null);
+                return result is bool fatal && fatal;
+            }
+            catch
+            {
+                return false;
             }
         }
 
