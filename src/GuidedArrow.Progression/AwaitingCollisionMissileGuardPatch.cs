@@ -34,11 +34,6 @@ namespace GuidedArrow.Progression
         [ThreadStatic]
         private static HashSet<MBMissile> _quarantinedMissiles;
 
-        private sealed class TickGuardState
-        {
-            internal HashSet<MBMissile> Previous;
-        }
-
         private sealed class MissileReferenceComparer : IEqualityComparer<MBMissile>
         {
             internal static readonly MissileReferenceComparer Instance = new MissileReferenceComparer();
@@ -102,9 +97,9 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static void TickPrefix(object __instance, out TickGuardState __state)
+        private static void TickPrefix(object __instance, out HashSet<MBMissile> __state)
         {
-            __state = new TickGuardState { Previous = _quarantinedMissiles };
+            __state = _quarantinedMissiles;
             _quarantinedMissiles = null;
             if (__instance == null) return;
 
@@ -136,9 +131,9 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static Exception TickFinalizer(Exception __exception, TickGuardState __state)
+        private static Exception TickFinalizer(Exception __exception, HashSet<MBMissile> __state)
         {
-            _quarantinedMissiles = __state?.Previous;
+            _quarantinedMissiles = __state;
             return __exception;
         }
 
