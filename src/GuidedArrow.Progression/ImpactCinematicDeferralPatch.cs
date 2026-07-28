@@ -5,22 +5,39 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
+using TaleWorlds.Engine;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Keeps cinematic Agent, ragdoll and camera work out of GuidedArrowBehavior.OnMissileHit.
+    /// Keeps victim tracking, cinematic Agent/ragdoll sampling and camera work out of
+    /// GuidedArrowBehavior.OnMissileHit.
     ///
-    /// The locked core samples victim bones when TrackCinematicSubject runs, samples them again when
-    /// a kill is confirmed, and can start the full cinematic camera before Bannerlord has finished
-    /// the native missile-impact callback. This patch stores only the collision position during that
-    /// callback and replays confirmed-kill handling on the next display tick. Later cinematic ticks
-    /// use the original live ragdoll tracking, so the kill camera is not pinned to a static point.
+    /// The locked core's TrackHitVictim subscribes to Agent.OnAgentHealthChanged while Bannerlord is
+    /// still resolving the native missile impact. It also immediately samples victim bones through
+    /// TrackCinematicSubject. Both operations are deferred to the next display tick. Confirmed-kill
+    /// handling is replayed immediately afterward, where the original live-ragdoll cinematic path is
+    /// safe to run and remains capable of following the moving corpse.
     /// </summary>
     internal static class ImpactCinematicDeferralPatch
     {
+        private sealed class PendingVictimTrack
+        {
+            internal Agent Victim;
+            internal int MissileIndex;
+            internal int CollisionBoneIndex;
+            internal GameEntity ArrowEntity;
+            internal Vec3 ImpactDirection;
+            internal Vec3 ImpactPosition;
+        }
+
+        private sealed class PendingVictimTrackQueue
+        {
+            internal readonly List<PendingVictimTrack> Items = new List<PendingVictimTrack>();
+        }
+
         private sealed class PendingKill
         {
             internal Agent Victim;
@@ -32,6 +49,8 @@ namespace GuidedArrow.Progression
             internal readonly List<PendingKill> Items = new List<PendingKill>();
         }
 
+        private static readonly ConditionalWeakTable<object, PendingVictimTrackQueue> PendingVictimTracks =
+            new ConditionalWeakTable<object, PendingVictimTrackQueue>();
         private static readonly ConditionalWeakTable<object, PendingKillQueue> PendingKills =
             new ConditionalWeakTable<object, PendingKillQueue>();
 
@@ -40,6 +59,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _subjectAgentField;
         private static FieldInfo _subjectLastKnownPositionField;
         private static FieldInfo _subjectHasLastKnownPositionField;
+        private static MethodInfo _trackHitVictimMethod;
         private static MethodInfo _handleConfirmedKillMethod;
 
         [ThreadStatic]
@@ -62,6 +82,18 @@ namespace GuidedArrow.Progression
             MethodInfo impactMethod = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .FirstOrDefault(candidate => candidate.Name == "OnMissileHit" && !candidate.IsAbstract);
+            _trackHitVictimMethod = AccessTools.Method(
+                behaviorType,
+                "TrackHitVictim",
+                new[]
+                {
+                    typeof(Agent),
+                    typeof(int),
+                    typeof(int),
+                    typeof(GameEntity),
+                    typeof(Vec3),
+                    typeof(Vec3)
+                });
             MethodInfo trackSubjectMethod = AccessTools.Method(
                 behaviorType,
                 "TrackCinematicSubject",
@@ -81,7 +113,10 @@ namespace GuidedArrow.Progression
             MethodInfo impactFinalizer = AccessTools.Method(
                 typeof(ImpactCinematicDeferralPatch),
                 nameof(ImpactFinalizer));
-            MethodInfo trackPrefix = AccessTools.Method(
+            MethodInfo trackVictimPrefix = AccessTools.Method(
+                typeof(ImpactCinematicDeferralPatch),
+                nameof(TrackHitVictimPrefix));
+            MethodInfo trackSubjectPrefix = AccessTools.Method(
                 typeof(ImpactCinematicDeferralPatch),
                 nameof(TrackSubjectPrefix));
             MethodInfo snapshotPrefix = AccessTools.Method(
@@ -98,12 +133,14 @@ namespace GuidedArrow.Progression
                 nameof(ResetPostfix));
 
             if (impactMethod == null ||
+                _trackHitVictimMethod == null ||
                 trackSubjectMethod == null ||
                 snapshotSubjectMethod == null ||
                 _handleConfirmedKillMethod == null ||
                 impactPrefix == null ||
                 impactFinalizer == null ||
-                trackPrefix == null ||
+                trackVictimPrefix == null ||
+                trackSubjectPrefix == null ||
                 snapshotPrefix == null ||
                 killPrefix == null ||
                 displayPrefix == null ||
@@ -121,8 +158,11 @@ namespace GuidedArrow.Progression
                     prefix: new HarmonyMethod(impactPrefix) { priority = Priority.First },
                     finalizer: new HarmonyMethod(impactFinalizer) { priority = Priority.Last });
                 harmony.Patch(
+                    _trackHitVictimMethod,
+                    prefix: new HarmonyMethod(trackVictimPrefix) { priority = Priority.First });
+                harmony.Patch(
                     trackSubjectMethod,
-                    prefix: new HarmonyMethod(trackPrefix) { priority = Priority.First });
+                    prefix: new HarmonyMethod(trackSubjectPrefix) { priority = Priority.First });
                 harmony.Patch(
                     snapshotSubjectMethod,
                     prefix: new HarmonyMethod(snapshotPrefix) { priority = Priority.First });
@@ -141,9 +181,9 @@ namespace GuidedArrow.Progression
             {
                 try
                 {
-                    // The impact-camera transition patch runs at Priority.First. Replay the kill
-                    // afterward so any pending native camera suspension completes before the
-                    // cinematic takes ownership of the camera on this safe display tick.
+                    // The impact-camera transition patch runs at Priority.First. Replay victim
+                    // tracking and then the kill after any pending native camera suspension has been
+                    // processed on this safe display tick.
                     harmony.Patch(
                         method,
                         prefix: new HarmonyMethod(displayPrefix) { priority = Priority.High });
@@ -177,21 +217,66 @@ namespace GuidedArrow.Progression
             return __exception;
         }
 
+        private static bool TrackHitVictimPrefix(
+            object __instance,
+            Agent __0,
+            int __1,
+            int __2,
+            GameEntity __3,
+            Vec3 __4,
+            Vec3 __5)
+        {
+            if (!_insideMissileHit) return true;
+            if (__instance == null || __0 == null) return false;
+
+            // Keep an immediate managed subject record for framing, but do not subscribe to the
+            // Agent health event or sample any live presentation data inside OnMissileHit.
+            TryCreateOrUpdateManagedSubject(__instance, __0, __5);
+
+            try
+            {
+                PendingVictimTrackQueue queue = PendingVictimTracks.GetOrCreateValue(__instance);
+                for (int i = 0; i < queue.Items.Count; i++)
+                {
+                    PendingVictimTrack existing = queue.Items[i];
+                    if (!ReferenceEquals(existing?.Victim, __0)) continue;
+
+                    existing.MissileIndex = __1;
+                    existing.CollisionBoneIndex = __2;
+                    existing.ArrowEntity = null;
+                    existing.ImpactDirection = __4;
+                    existing.ImpactPosition = __5;
+                    return false;
+                }
+
+                queue.Items.Add(new PendingVictimTrack
+                {
+                    Victim = __0,
+                    MissileIndex = __1,
+                    CollisionBoneIndex = __2,
+                    // The impacted missile entity has already entered native teardown. It is optional
+                    // cinematic decoration and must not survive the callback as a native handle.
+                    ArrowEntity = null,
+                    ImpactDirection = __4,
+                    ImpactPosition = __5
+                });
+            }
+            catch { }
+
+            return false;
+        }
+
         private static bool TrackSubjectPrefix(object __instance, Agent __0, Vec3 __1)
         {
             if (!_insideMissileHit) return true;
             if (__instance == null || __0 == null) return false;
 
-            // During the native collision callback the managed collision position is authoritative.
-            // Do not query Agent.Monster, Skeleton or AgentVisuals here.
             TryCreateOrUpdateManagedSubject(__instance, __0, __1);
             return false;
         }
 
         private static bool SnapshotSubjectPrefix()
         {
-            // The subject already contains the collision position. Live ragdoll sampling resumes as
-            // soon as the original cinematic code runs outside OnMissileHit.
             return !_insideMissileHit;
         }
 
@@ -217,24 +302,58 @@ namespace GuidedArrow.Progression
             }
             catch { }
 
-            // Do not run CleanupTrackedMissiles, bone sampling, time control or SetMissionCamera
-            // from the native collision callback.
             return false;
         }
 
         private static void DisplayPrefix(object __instance)
         {
-            if (__instance == null ||
-                !PendingKills.TryGetValue(__instance, out PendingKillQueue queue) ||
-                queue == null)
+            if (__instance == null) return;
+
+            if (PendingVictimTracks.TryGetValue(
+                __instance,
+                out PendingVictimTrackQueue victimQueue) &&
+                victimQueue != null)
+            {
+                PendingVictimTracks.Remove(__instance);
+                PendingVictimTrack[] pendingVictims = victimQueue.Items.ToArray();
+
+                for (int i = 0; i < pendingVictims.Length; i++)
+                {
+                    PendingVictimTrack item = pendingVictims[i];
+                    if (item?.Victim == null) continue;
+
+                    try
+                    {
+                        _trackHitVictimMethod.Invoke(
+                            __instance,
+                            new object[]
+                            {
+                                item.Victim,
+                                item.MissileIndex,
+                                item.CollisionBoneIndex,
+                                item.ArrowEntity,
+                                item.ImpactDirection,
+                                item.ImpactPosition
+                            });
+                    }
+                    catch
+                    {
+                        // Fatal hits still have the independent deferred-kill path below. A non-fatal
+                        // victim that disappears before this display tick requires no further tracking.
+                    }
+                }
+            }
+
+            if (!PendingKills.TryGetValue(__instance, out PendingKillQueue killQueue) ||
+                killQueue == null)
                 return;
 
             PendingKills.Remove(__instance);
-            PendingKill[] pending = queue.Items.ToArray();
+            PendingKill[] pendingKills = killQueue.Items.ToArray();
 
-            for (int i = 0; i < pending.Length; i++)
+            for (int i = 0; i < pendingKills.Length; i++)
             {
-                PendingKill item = pending[i];
+                PendingKill item = pendingKills[i];
                 if (item?.Victim == null) continue;
 
                 try
@@ -253,8 +372,9 @@ namespace GuidedArrow.Progression
 
         private static void ResetPostfix(object __instance)
         {
-            if (__instance != null)
-                PendingKills.Remove(__instance);
+            if (__instance == null) return;
+            PendingVictimTracks.Remove(__instance);
+            PendingKills.Remove(__instance);
         }
 
         private static void TryCreateOrUpdateManagedSubject(object instance, Agent victim, Vec3 position)
