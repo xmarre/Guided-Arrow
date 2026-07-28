@@ -89,12 +89,13 @@ namespace GuidedArrow.Progression
             _victimArgumentIndex = secondAgentParameterIndex + 1;
             _agentHealthGetter = AccessTools.PropertyGetter(typeof(Agent), nameof(Agent.Health));
             _collisionFatalDamageGetter = AccessTools.PropertyGetter(typeof(AttackCollisionData), "IsFatalDamage");
-            _missileEntityGetter = typeof(MBMissile)
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(candidate =>
-                    candidate.Name == "get_Entity" &&
-                    candidate.GetParameters().Length == 0 &&
-                    candidate.ReturnType == typeof(GameEntity));
+
+            // The concrete mission wrapper is the global TaleWorlds type `Missile`, which derives
+            // from MBMissile and declares Entity itself. Looking only on MBMissile misses this call.
+            Type concreteMissileType = typeof(MBMissile).Assembly.GetType("Missile", false);
+            _missileEntityGetter = concreteMissileType == null
+                ? null
+                : AccessTools.PropertyGetter(concreteMissileType, "Entity");
 
             MethodInfo transpiler = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
