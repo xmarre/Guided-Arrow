@@ -4,7 +4,7 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 ## Current repository snapshot
 
-- Mod version: **1.3.1 test branch**
+- Mod version: **1.3.2 test branch**
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
@@ -15,7 +15,7 @@ The supplied v1.1.17 clean archive did not include the original core source. A r
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.1 hardens the long-flight and repeated-penetration lifecycle around the binary core. Before guidance and projectile-camera ticks, every tracked missile must either retain its exact registered wrapper or pass the core's existing shooter/entity/item identity refresh after a legitimate native wrapper replacement. Registry-missing, identity-mismatched and recycled entries are cleaned up without invoking expired native handles. Post-penetration target changes are deferred out of the native collision callback until the continuing projectile exists on a stable subsequent tick. Removed victims are purged from active and planned Autoguidance state. The depth-aware continuation exit distance is captured while the victim is still live, so deferred synthetic continuation creation no longer reads the previous victim's native position, visuals or entity.
+v1.3.2 retains the v1.3.1 live-missile validation and deferred retargeting, and removes the remaining native Agent reads from concentrated impact callbacks. Penetration continuations now use a fixed managed 1.25-metre exit distance instead of probing `Agent.Position` during the collision burst. Mastery hit range is calculated from the collision value data and the core's cached shot origin. The stable v1.1.17 core remains byte-identical.
 
 ## Repository layout
 
