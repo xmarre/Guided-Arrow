@@ -73,8 +73,9 @@ jobs:
 
           ### Concentrated volley stability
 
-          - Raises pending collision-context and early-reaction capacity from 32 to 256.
-          - Preserves every correlation record in 48-arrow and larger same-tick impact bursts.
+          - Quarantines missile wrappers while their collision reaction is pending.
+          - Prevents pending terminal handles from entering mission-tick position, velocity and steering calls.
+          - Defers registry refresh and ownership repair until the reaction or timeout resolves.
           - Reuses managed impact positions for repeated hits on an already-tracked victim.
           - Replaces post-impact Agent health reads with the collision packet's fatal-damage flag.
           - Detaches cinematic subjects when agent removal begins so camera ticks use stored positions.
