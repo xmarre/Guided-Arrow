@@ -1,4 +1,4 @@
-GUIDED ARROW v1.3.0
+GUIDED ARROW v1.3.2
 Bannerlord 1.3.15-1.4.7
 
 INSTALLATION
@@ -31,3 +31,6 @@ Level 1 unlocks manual guidance with a real four-second cap. Higher Guided Relea
 NATIVE ABILITY VOLLEYS
 Native/TOR ability arrows are never removed or replaced. The configured Guided Arrow split count is added on top of them. Waywatcher Lethal Shot therefore keeps all five original magic/explosive arrows; a split count of 30 adds 30 Guided Arrow followers for 35 total projectiles.
 Native ability arrows remain on TOR/native collision and penetration handling. Added followers use Guided Arrow's hardened synthetic penetration path.
+
+SAME-TICK IMPACT SAFETY
+Large split volleys use a fixed managed continuation exit distance and avoid native victim-position reads while many arrows resolve against the same target in one mission tick.
