@@ -60,7 +60,7 @@ namespace GuidedArrow.Progression
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
-            ImpactTraceDiagnosticPatch.Install(harmony, behaviorType);
+            PassThroughBudgetSafetyPatch.Install(harmony, behaviorType);
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
         }
