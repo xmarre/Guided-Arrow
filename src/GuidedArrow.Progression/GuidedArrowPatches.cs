@@ -53,7 +53,12 @@ namespace GuidedArrow.Progression
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
+
+            // Do not patch MissionBehavior.OnAgentHit. That inherited callback runs after the core
+            // impact path and can expose already-transitioned Agent wrappers. Progression accounting
+            // is captured from the core's own OnMissileHit arguments and flushed on display tick.
             ProgressionHitAccountingPatch.Install(harmony, behaviorType);
+
             if (settingsType != null)
                 NativeVolleyAugmentationPatch.Install(harmony, behaviorType, settingsType);
         }
