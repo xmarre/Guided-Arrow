@@ -244,18 +244,12 @@ namespace GuidedArrow.Progression
 
         private static bool IsEnemy(Agent victim, Agent shooter)
         {
-            try
-            {
-                MethodInfo method = victim.GetType().GetMethod(
-                    "IsEnemyOf",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new[] { typeof(Agent) },
-                    null);
-                if (method != null) return (bool)method.Invoke(victim, new object[] { shooter });
-            }
-            catch { }
-            return victim.Team == null || shooter.Team == null || victim.Team != shooter.Team;
+            Team victimTeam = victim?.Team;
+            Team shooterTeam = shooter?.Team;
+            if (victimTeam == null || shooterTeam == null) return true;
+
+            try { return victimTeam.IsEnemyOf(shooterTeam); }
+            catch { return victimTeam != shooterTeam; }
         }
     }
 }
