@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.2
+
+- Removes the collision-callback depth probe that read `Agent.Position` through a native position pointer while concentrated volleys were resolving against the same victim.
+- Uses the existing fixed 1.25-metre continuation exit distance from managed collision position and direction data, while retaining one synthetic continuation spawn per mission tick.
+- Calculates mastery range bonuses from the collision position and the core's cached shot origin instead of reading victim and shooter native positions after a hit.
+- Retains the byte-identical verified v1.1.17 gameplay core and limits the fix to the maintained sidecar.
+
 ## 1.3.1
 
 - Validates every controlled missile against Bannerlord's live mission registry before guidance, deferred-work and projectile-camera ticks.
