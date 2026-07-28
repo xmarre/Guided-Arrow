@@ -34,6 +34,7 @@ namespace GuidedArrow.Progression
 
                 Harmony harmony = new Harmony("guidedarrow.progression.post-impact-native-boundary");
                 ImpactCameraTransitionSafetyPatch.Install(harmony, behaviorType);
+                EarlyCollisionReactionDeferralPatch.Install(harmony, behaviorType);
                 ImpactCinematicDeferralPatch.Install(harmony, behaviorType);
             }
             catch
