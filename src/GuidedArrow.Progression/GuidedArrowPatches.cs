@@ -209,7 +209,7 @@ namespace GuidedArrow.Progression
                 if (victim == null || !IsEnemy(victim, shooter)) return;
 
                 int generation = _generationField != null ? (int)_generationField.GetValue(__instance) : 0;
-                bool killed = victim.Health <= 0.01f;
+                bool killed = ReadManagedFatalDamage(__args);
                 float distance = ReadManagedHitDistance(__instance, __args);
                 float multiplier = 1f;
 
@@ -223,6 +223,19 @@ namespace GuidedArrow.Progression
                 progression.RecordGuidedHit(generation, victim.Index, killed, distance, multiplier);
             }
             catch { }
+        }
+
+        private static bool ReadManagedFatalDamage(object[] args)
+        {
+            if (args == null) return false;
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] is AttackCollisionData collision)
+                    return collision.IsFatalDamage;
+            }
+
+            return false;
         }
 
         private static float ReadManagedHitDistance(object instance, object[] args)
