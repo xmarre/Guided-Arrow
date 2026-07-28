@@ -35,7 +35,7 @@ The maintained `GuidedArrow.Progression` project contains:
 - split-penetration stability and additive native-volley support;
 - exact live-registry validation for stable-core missile wrappers;
 - deferred and removal-safe Autoguidance target transitions;
-- concentrated same-tick collision correlation and victim-lifetime protection.
+- pending-collision native-handle quarantine and victim-lifetime protection.
 
 ## v1.3.2 runtime model
 
@@ -43,11 +43,13 @@ The normal Guided Arrow MCM settings are never Harmony-patched at getter level. 
 
 Guided Release's four-second starting cap is enforced directly against the core's real-time guidance counter because the verified core internally clamps its own setting to at least five seconds.
 
-Before stable-core guidance and projectile-camera entry points execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. A legitimate wrapper replacement is first passed through the core's existing shooter/entity/item identity refresh. Registry-missing, identity-mismatched or recycled entries are then removed through the core's cleanup path without calling their native missile methods. Leader and camera ownership are repaired only from the remaining exact live entries, while intentional camera index `-1` states remain suspended.
+Before stable-core guidance and projectile-camera entry points execute, the sidecar compares non-pending tracked missile indices and wrapper references against Bannerlord's managed mission missile dictionary. Registry validation is deferred while a tracked entry is awaiting its collision reaction because the verified core's refresh path queries mutable missile-native identity data. Once the reaction or timeout resolves, normal exact-wrapper validation resumes.
+
+Binary inspection of the locked core shows that `OnMissionTick` reads `MBMissile.GetPosition` and `GetVelocity` before checking `TrackedMissile.AwaitingCollisionReaction`. v1.3.2 snapshots those pending wrappers at tick entry and replaces only the core's four position/velocity reads and four velocity writes with guarded sidecar calls. Pending wrappers return managed zero vectors and reject steering writes for that tick. A newly created continuation wrapper is not quarantined and enters the normal path immediately. Pending entries are also excluded from leader and projectile-camera ownership repair.
 
 A penetration collision no longer performs full target collection, skeleton/head lookup or route assignment inside the native collision callback. The impacted target is recorded as consumed through managed references, the current target is cleared when necessary, and the existing fallback direction is retained. Planned-route advancement or fresh target selection then occurs through the normal display-tick path after the original projectile has survived native pass-through or a synthetic continuation has been created. The consumed-target list belongs to each tracked missile and only prevents that missile from reacquiring the same target.
 
-The stable core's pending collision-context and early-reaction queues originally retained 32 entries each. v1.3.2 raises both capacities to 256 so a 48-projectile same-tick impact preserves every live correlation record until the corresponding native reaction is processed. Repeated hits on an already-tracked victim reuse the managed impact position instead of resampling native bones. Fatal-hit detection uses the collision packet's runtime `IsFatalDamage` getter rather than `Agent.Health`, and cinematic subjects are detached from their Agent reference when removal begins so later camera ticks use the stored position.
+Repeated hits on an already-tracked victim reuse the managed impact position instead of resampling native bones. Fatal-hit detection uses the collision packet's runtime `IsFatalDamage` getter rather than `Agent.Health`, and cinematic subjects are detached from their Agent reference when removal begins so later camera ticks use the stored position. The experimental collision-queue expansion was removed after equal 32-arrow and 48-arrow results ruled out the queue boundary.
 
 Synthetic continuation creation uses only managed collision position and direction values with a fixed 1.25-metre exit distance. Mastery range accounting likewise uses the collision position and the core's cached shot origin rather than victim or shooter position pointers. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
 
