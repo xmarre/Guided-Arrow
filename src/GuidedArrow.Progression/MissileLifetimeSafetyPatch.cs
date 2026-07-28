@@ -24,6 +24,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _trackedMissilesField;
         private static FieldInfo _trackedMissileField;
         private static FieldInfo _trackedIndexField;
+        private static FieldInfo _awaitingCollisionReactionField;
         private static FieldInfo _leaderMissileField;
         private static FieldInfo _leaderIndexField;
         private static FieldInfo _cameraMissileIndexField;
@@ -43,6 +44,7 @@ namespace GuidedArrow.Progression
             _trackedMissilesField = AccessTools.Field(behaviorType, "_trackedMissiles");
             _trackedMissileField = AccessTools.Field(trackedType, "Missile");
             _trackedIndexField = AccessTools.Field(trackedType, "Index");
+            _awaitingCollisionReactionField = AccessTools.Field(trackedType, "AwaitingCollisionReaction");
             _leaderMissileField = AccessTools.Field(behaviorType, "_missile");
             _leaderIndexField = AccessTools.Field(behaviorType, "_missileIndex");
             _cameraMissileIndexField = AccessTools.Field(behaviorType, "_cameraMissileIndex");
@@ -64,7 +66,8 @@ namespace GuidedArrow.Progression
             if (_missionMissilesDictionaryField == null ||
                 _trackedMissilesField == null ||
                 _trackedMissileField == null ||
-                _trackedIndexField == null)
+                _trackedIndexField == null ||
+                _awaitingCollisionReactionField == null)
                 return;
 
             // These are the two outer per-frame entry points. Patching the private methods they call
@@ -150,6 +153,8 @@ namespace GuidedArrow.Progression
                 for (int i = tracked.Count - 1; i >= 0; i--)
                 {
                     object entry = tracked[i];
+                    if (IsAwaitingCollisionReaction(entry))
+                        continue;
                     if (IsExactLiveRegistryEntry(instance, registry, entry, out _, out _))
                         continue;
 
@@ -324,7 +329,7 @@ namespace GuidedArrow.Progression
             for (int i = 0; i < tracked.Count; i++)
             {
                 object entry = tracked[i];
-                if (entry == null) continue;
+                if (entry == null || IsAwaitingCollisionReaction(entry)) continue;
 
                 int index;
                 object liveMissile;
@@ -365,6 +370,13 @@ namespace GuidedArrow.Progression
             // positive camera owner that no longer belongs to this exact live guided set.
             if (!cameraOwnerIsLive)
                 _cameraMissileIndexField?.SetValue(instance, effectiveLeaderIndex);
+        }
+
+        private static bool IsAwaitingCollisionReaction(object entry)
+        {
+            if (entry == null || _awaitingCollisionReactionField == null) return false;
+            try { return (bool)_awaitingCollisionReactionField.GetValue(entry); }
+            catch { return false; }
         }
 
         private static int ReadInt(FieldInfo field, object instance, int fallback)
