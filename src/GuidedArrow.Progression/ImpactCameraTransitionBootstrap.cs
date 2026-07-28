@@ -35,10 +35,13 @@ namespace GuidedArrow.Progression
                 GenerationScopedImpactReplayPatch.Install(
                     new Harmony("guidedarrow.progression.generation-scoped-impact-replay"),
                     behaviorType);
+                GlobalMissileRemovalIdentityGatePatch.Install(
+                    new Harmony("guidedarrow.progression.global-removal-identity-gate"),
+                    behaviorType);
             }
             catch
             {
-                // The stable core remains available if the narrow replay patch cannot be installed.
+                // The stable core remains available if the narrow replay patches cannot be installed.
             }
         }
     }
