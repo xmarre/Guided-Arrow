@@ -1,0 +1,6 @@
+GUIDED ARROW v1.3.2
+
+- Removed native Agent position reads from concentrated penetration collision callbacks.
+- Kept synthetic continuation creation serialised to one projectile per mission tick.
+- Switched continuation placement to a fixed managed 1.25-metre exit distance.
+- Calculated mastery range from collision data and the cached shot origin.
