@@ -9,9 +9,9 @@ namespace GuidedArrow.Progression
 {
     /// <summary>
     /// Applies mastery-derived settings once before Guided Arrow evaluates a shot and keeps the
-    /// resulting snapshot active for the complete guided-shot lifetime. This avoids the previous
-    /// callback-scoped apply/restore cycle, which could make OnMissileCollisionReaction and
-    /// OnMissileHit observe different penetration and guidance settings for the same projectile.
+    /// resulting snapshot active for the complete guided-shot lifetime. Terminal handling only
+    /// marks the snapshot for restoration; the actual restore happens after the next display tick
+    /// so a concentrated impact burst cannot observe settings changing while callbacks unwind.
     /// </summary>
     internal static class ProgressionRuntimeSettingsPatch
     {
@@ -30,6 +30,7 @@ namespace GuidedArrow.Progression
             internal PropertyInfo FlightProfileIndexProperty;
             internal int FlightProfileIndex;
             internal bool FlightProfileChanged;
+            internal bool RestorePending;
             internal bool Restored;
         }
 
@@ -73,7 +74,8 @@ namespace GuidedArrow.Progression
             MethodInfo startPrefix = AccessTools.Method(typeof(ProgressionRuntimeSettingsPatch), nameof(StartPrefix));
             MethodInfo startFinalizer = AccessTools.Method(typeof(ProgressionRuntimeSettingsPatch), nameof(StartFinalizer));
             MethodInfo restorePrefix = AccessTools.Method(typeof(ProgressionRuntimeSettingsPatch), nameof(RestorePrefix));
-            MethodInfo restorePostfix = AccessTools.Method(typeof(ProgressionRuntimeSettingsPatch), nameof(RestorePostfix));
+            MethodInfo markRestorePostfix = AccessTools.Method(typeof(ProgressionRuntimeSettingsPatch), nameof(MarkRestorePostfix));
+            MethodInfo displayTickPostfix = AccessTools.Method(typeof(ProgressionRuntimeSettingsPatch), nameof(DisplayTickPostfix));
 
             foreach (MethodInfo method in behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -104,15 +106,17 @@ namespace GuidedArrow.Progression
                 catch { }
             }
 
-            foreach (string methodName in new[] { "ResetAll" })
+            foreach (MethodInfo method in behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(candidate => candidate.Name == "ResetAll" && !candidate.IsAbstract))
             {
-                foreach (MethodInfo method in behaviorType
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .Where(candidate => candidate.Name == methodName && !candidate.IsAbstract))
+                try
                 {
-                    try { harmony.Patch(method, prefix: new HarmonyMethod(restorePrefix) { priority = Priority.First }); }
-                    catch { }
+                    harmony.Patch(
+                        method,
+                        prefix: new HarmonyMethod(restorePrefix) { priority = Priority.First });
                 }
+                catch { }
             }
 
             foreach (string methodName in new[] { "HandleGuidedSwarmTerminal", "BeginReturn" })
@@ -121,9 +125,27 @@ namespace GuidedArrow.Progression
                     .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                     .Where(candidate => candidate.Name == methodName && !candidate.IsAbstract))
                 {
-                    try { harmony.Patch(method, postfix: new HarmonyMethod(restorePostfix) { priority = Priority.Last }); }
+                    try
+                    {
+                        harmony.Patch(
+                            method,
+                            postfix: new HarmonyMethod(markRestorePostfix) { priority = Priority.Last });
+                    }
                     catch { }
                 }
+            }
+
+            foreach (MethodInfo method in behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(candidate => candidate.Name == "OnPreDisplayMissionTick" && !candidate.IsAbstract))
+            {
+                try
+                {
+                    harmony.Patch(
+                        method,
+                        postfix: new HarmonyMethod(displayTickPostfix) { priority = Priority.Last });
+                }
+                catch { }
             }
 
             MethodInfo guidanceTick = AccessTools.Method(behaviorType, "TickGuidanceDisplay");
@@ -187,10 +209,23 @@ namespace GuidedArrow.Progression
                 Restore(_activeState);
         }
 
-        private static void RestorePostfix(object __instance)
+        private static void MarkRestorePostfix(object __instance)
         {
-            if (_activeState != null && ReferenceEquals(_activeState.Instance, __instance))
-                Restore(_activeState);
+            RuntimeState active = _activeState;
+            if (active != null && ReferenceEquals(active.Instance, __instance) && !active.Restored)
+                active.RestorePending = true;
+        }
+
+        private static void DisplayTickPostfix(object __instance)
+        {
+            RuntimeState active = _activeState;
+            if (active != null &&
+                ReferenceEquals(active.Instance, __instance) &&
+                active.RestorePending &&
+                !active.Restored)
+            {
+                Restore(active);
+            }
         }
 
         private static void EnsureApplied(object instance)
@@ -200,8 +235,15 @@ namespace GuidedArrow.Progression
 
             if (_activeState != null)
             {
-                if (ReferenceEquals(_activeState.Instance, instance) && !_activeState.Restored) return;
-                Restore(_activeState);
+                if (ReferenceEquals(_activeState.Instance, instance) && !_activeState.Restored)
+                {
+                    if (!_activeState.RestorePending) return;
+                    Restore(_activeState);
+                }
+                else
+                {
+                    Restore(_activeState);
+                }
             }
 
             object settings;
