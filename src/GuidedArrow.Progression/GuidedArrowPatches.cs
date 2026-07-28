@@ -231,8 +231,8 @@ namespace GuidedArrow.Progression
 
             for (int i = 0; i < args.Length; i++)
             {
-                if (args[i] is AttackCollisionData collision)
-                    return collision.IsFatalDamage;
+                if (args[i] is AttackCollisionData)
+                    return ConcentratedImpactSafetyPatch.ReadCollisionFatalDamage(args[i]);
             }
 
             return false;
