@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using HarmonyLib;
 
 namespace System.Runtime.CompilerServices
@@ -13,22 +12,14 @@ namespace System.Runtime.CompilerServices
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Diagnostic-only hard boundary used to determine whether the protected-memory failure occurs
-    /// inside Guided Arrow's impact callbacks or outside the mod after Bannerlord reports the hit.
-    ///
-    /// Once the first GuidedArrowBehavior.OnMissileHit callback is entered, the original callback and
-    /// all later core tick, display-tick, collision-reaction and missile-removal callbacks for that
-    /// behavior instance are suppressed. No Guided Arrow continuation, retarget, camera-return or
-    /// tracked-missile cleanup code is allowed to execute after that impact.
+    /// Diagnostic-only boundary that suppresses only GuidedArrowBehavior.OnMissileHit.
+    /// All subsequent mission ticks, display ticks, collision-reaction and missile-removal callbacks
+    /// remain enabled. This separates the original impact handler from the later callback set that
+    /// was also suppressed by the preceding hard-bypass diagnostic.
     /// </summary>
     internal static class ImpactIsolationDiagnosticPatch
     {
-        private sealed class Marker { }
-
-        private static readonly ConditionalWeakTable<object, Marker> BypassedInstances =
-            new ConditionalWeakTable<object, Marker>();
-
-        [ModuleInitializer]
+        [System.Runtime.CompilerServices.ModuleInitializer]
         internal static void InitializeModule()
         {
             try
@@ -49,7 +40,7 @@ namespace GuidedArrow.Progression
                 if (behaviorType == null) return;
 
                 Install(
-                    new Harmony("guidedarrow.progression.impact-isolation-diagnostic"),
+                    new Harmony("guidedarrow.progression.onmissilehit-only-diagnostic"),
                     behaviorType);
             }
             catch
@@ -65,14 +56,7 @@ namespace GuidedArrow.Progression
             MethodInfo impactPrefix = AccessTools.Method(
                 typeof(ImpactIsolationDiagnosticPatch),
                 nameof(ImpactPrefix));
-            MethodInfo suppressAfterImpactPrefix = AccessTools.Method(
-                typeof(ImpactIsolationDiagnosticPatch),
-                nameof(SuppressAfterImpactPrefix));
-            MethodInfo resetPostfix = AccessTools.Method(
-                typeof(ImpactIsolationDiagnosticPatch),
-                nameof(ResetPostfix));
-            if (impactPrefix == null || suppressAfterImpactPrefix == null || resetPostfix == null)
-                return;
+            if (impactPrefix == null) return;
 
             foreach (MethodInfo method in FindMethods(behaviorType, "OnMissileHit"))
             {
@@ -84,68 +68,12 @@ namespace GuidedArrow.Progression
                 }
                 catch { }
             }
-
-            foreach (string methodName in new[]
-            {
-                "OnMissionTick",
-                "OnPreDisplayMissionTick",
-                "OnMissileCollisionReaction",
-                "OnMissileRemoved"
-            })
-            {
-                foreach (MethodInfo method in FindMethods(behaviorType, methodName))
-                {
-                    try
-                    {
-                        harmony.Patch(
-                            method,
-                            prefix: new HarmonyMethod(suppressAfterImpactPrefix)
-                            {
-                                priority = int.MaxValue
-                            });
-                    }
-                    catch { }
-                }
-            }
-
-            foreach (MethodInfo method in FindMethods(behaviorType, "ResetAll"))
-            {
-                try
-                {
-                    harmony.Patch(
-                        method,
-                        postfix: new HarmonyMethod(resetPostfix) { priority = Priority.Last });
-                }
-                catch { }
-            }
         }
 
-        internal static bool IsBypassed(object instance)
+        private static bool ImpactPrefix()
         {
-            return instance != null && BypassedInstances.TryGetValue(instance, out _);
-        }
-
-        private static bool ImpactPrefix(object __instance)
-        {
-            if (__instance != null && !BypassedInstances.TryGetValue(__instance, out _))
-            {
-                try { BypassedInstances.Add(__instance, new Marker()); }
-                catch (ArgumentException) { }
-            }
-
-            // Diagnostic invariant: none of the verified core's impact processing runs.
+            // Diagnostic invariant: only the verified core's OnMissileHit processing is skipped.
             return false;
-        }
-
-        private static bool SuppressAfterImpactPrefix(object __instance)
-        {
-            return !IsBypassed(__instance);
-        }
-
-        private static void ResetPostfix(object __instance)
-        {
-            if (__instance != null)
-                BypassedInstances.Remove(__instance);
         }
 
         private static IEnumerable<MethodInfo> FindMethods(Type behaviorType, string methodName)
