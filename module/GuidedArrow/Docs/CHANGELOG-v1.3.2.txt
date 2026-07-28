@@ -1,6 +1,9 @@
 GUIDED ARROW v1.3.2
 
-- Removed native Agent position reads from concentrated penetration collision callbacks.
+- Raised pending collision and early-reaction capacity from 32 to 256 for concentrated same-tick volleys.
+- Reused managed impact positions instead of repeatedly sampling the same victim's native skeleton.
+- Replaced post-impact Agent health reads with the collision packet's fatal-damage flag.
+- Detached cinematic subjects when agent removal begins so later camera ticks use stored positions.
 - Kept synthetic continuation creation serialised to one projectile per mission tick.
-- Switched continuation placement to a fixed managed 1.25-metre exit distance.
+- Used a fixed managed 1.25-metre continuation exit distance.
 - Calculated mastery range from collision data and the cached shot origin.
