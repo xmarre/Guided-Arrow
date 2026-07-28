@@ -70,7 +70,10 @@ namespace GuidedArrow.Progression
             MethodInfo transpiler = AccessTools.Method(
                 typeof(ConcentratedImpactSafetyPatch),
                 nameof(MissileHitTranspiler));
-            if (_agentHealthGetter == null || transpiler == null) return;
+            if (_agentHealthGetter == null ||
+                _collisionFatalDamageGetter == null ||
+                transpiler == null)
+                return;
 
             try
             {
@@ -220,18 +223,27 @@ namespace GuidedArrow.Progression
             if (victim == null || !TryFindCinematicSubject(__instance, victim, out object subject))
                 return true;
 
-            if (__args[1] is Vec3 fallbackPosition && IsFinite(fallbackPosition))
+            try
             {
-                try
+                Vec3 safePosition = Vec3.Zero;
+                if (__args[1] is Vec3 fallbackPosition && IsFinite(fallbackPosition))
                 {
-                    _subjectLastKnownPositionField.SetValue(subject, fallbackPosition);
-                    _subjectHasLastKnownPositionField.SetValue(subject, true);
+                    safePosition = fallbackPosition;
                 }
-                catch { }
-            }
+                else
+                {
+                    object cached = _subjectLastKnownPositionField.GetValue(subject);
+                    if (cached is Vec3 cachedPosition && IsFinite(cachedPosition))
+                        safePosition = cachedPosition;
+                }
 
-            // The victim already has a managed subject record. Keep the collision position and do
-            // not re-enter skeleton/bone queries while the same impact burst may be killing it.
+                _subjectLastKnownPositionField.SetValue(subject, safePosition);
+                _subjectHasLastKnownPositionField.SetValue(subject, true);
+            }
+            catch { }
+
+            // The victim already has a managed subject record. Never re-enter skeleton/bone queries
+            // for this subject, including when collision data did not contain a finite position.
             return false;
         }
 
@@ -241,17 +253,12 @@ namespace GuidedArrow.Progression
                 return true;
 
             Agent victim = __args[0] as Agent;
-            if (victim == null || !TryFindCinematicSubject(__instance, victim, out object subject))
+            if (victim == null || !TryFindCinematicSubject(__instance, victim, out _))
                 return true;
 
-            try
-            {
-                return !((bool)_subjectHasLastKnownPositionField.GetValue(subject));
-            }
-            catch
-            {
-                return true;
-            }
+            // An existing subject must remain on its managed cached-position path. Falling through
+            // would query native visuals again while the same impact burst may be removing it.
+            return false;
         }
 
         private static void AgentRemovalPostfix(object __instance, object[] __args)
