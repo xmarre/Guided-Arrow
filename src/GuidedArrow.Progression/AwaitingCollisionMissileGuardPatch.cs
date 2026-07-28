@@ -197,7 +197,15 @@ namespace GuidedArrow.Progression
 
         private static Vec3 SafeGetVelocity(MBMissile missile)
         {
-            return IsQuarantined(missile) ? Vec3.Zero : missile.GetVelocity();
+            if (!IsQuarantined(missile))
+                return missile.GetVelocity();
+
+            // The locked core validates velocity length before it checks AwaitingCollisionReaction.
+            // A zero vector would bypass the pending-collision branch and make the guided swarm look
+            // inactive. Use a finite non-zero managed sentinel solely to reach that existing check.
+            Vec3 sentinel = Vec3.Zero;
+            sentinel.y = 1f;
+            return sentinel;
         }
 
         private static void SafeSetVelocity(MBMissile missile, ref Vec3 velocity)
