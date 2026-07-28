@@ -10,6 +10,7 @@ $ProgressionBuildOut = Join-Path $Artifacts "progression-build"
 $Stage = Join-Path $Artifacts "stage"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
+$BuildLog = Join-Path $Artifacts "build.log"
 $Version = "1.3.2"
 $ExpectedCoreSha256 = "0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0"
 
@@ -28,8 +29,17 @@ if ($coreHash -ne $ExpectedCoreSha256) {
 }
 Write-Host "Verified stable GuidedArrow.dll SHA-256: $coreHash"
 
-dotnet restore $ProgressionProject
-dotnet build $ProgressionProject -c $Configuration --no-restore -o $ProgressionBuildOut /p:ContinuousIntegrationBuild=true
+& dotnet restore $ProgressionProject 2>&1 | Tee-Object -FilePath $BuildLog
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet restore failed with exit code $LASTEXITCODE. See artifacts/build.log."
+}
+
+& dotnet build $ProgressionProject -c $Configuration --no-restore -o $ProgressionBuildOut /p:ContinuousIntegrationBuild=true 2>&1 |
+    Tee-Object -FilePath $BuildLog -Append
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet build failed with exit code $LASTEXITCODE. See artifacts/build.log."
+}
+
 Copy-Item (Join-Path $ProgressionBuildOut "GuidedArrow.Progression.dll") (Join-Path $ModuleBin "GuidedArrow.Progression.dll") -Force
 Copy-Item (Join-Path $ProgressionBuildOut "GuidedArrow.Progression.pdb") (Join-Path $ModuleBin "GuidedArrow.Progression.pdb") -Force
 
