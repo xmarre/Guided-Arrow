@@ -25,7 +25,7 @@ namespace GuidedArrow.Progression
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
-            ConcentratedVolleyTerminalQuiescencePatch.Install(harmony, behaviorType);
+            ConcentratedVolleyCinematicBypassPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
             if (settingsType != null)
