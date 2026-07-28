@@ -34,7 +34,8 @@ The maintained `GuidedArrow.Progression` project contains:
 - narrow runtime patches around the verified core;
 - split-penetration stability and additive native-volley support;
 - exact live-registry validation for stable-core missile wrappers;
-- deferred and removal-safe Autoguidance target transitions.
+- deferred and removal-safe Autoguidance target transitions;
+- concentrated same-tick collision correlation and victim-lifetime protection.
 
 ## v1.3.2 runtime model
 
@@ -44,9 +45,11 @@ Guided Release's four-second starting cap is enforced directly against the core'
 
 Before stable-core guidance and projectile-camera entry points execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. A legitimate wrapper replacement is first passed through the core's existing shooter/entity/item identity refresh. Registry-missing, identity-mismatched or recycled entries are then removed through the core's cleanup path without calling their native missile methods. Leader and camera ownership are repaired only from the remaining exact live entries, while intentional camera index `-1` states remain suspended.
 
-A penetration collision no longer performs full target collection, skeleton/head lookup or route assignment inside the native collision callback. The impacted target is recorded as consumed through managed references, the current target is cleared when necessary, and the existing fallback direction is retained. Planned-route advancement or fresh target selection then occurs through the normal display-tick path after the original projectile has survived native pass-through or a synthetic continuation has been created.
+A penetration collision no longer performs full target collection, skeleton/head lookup or route assignment inside the native collision callback. The impacted target is recorded as consumed through managed references, the current target is cleared when necessary, and the existing fallback direction is retained. Planned-route advancement or fresh target selection then occurs through the normal display-tick path after the original projectile has survived native pass-through or a synthetic continuation has been created. The consumed-target list belongs to each tracked missile and only prevents that missile from reacquiring the same target.
 
-Synthetic continuation creation uses only managed collision position and direction values with a fixed 1.25-metre exit distance. The collision callback does not read `Agent.Position`, `AgentVisuals` or any victim native entity. Mastery range accounting likewise uses the collision position and the core's cached shot origin rather than victim or shooter position pointers. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
+The stable core's pending collision-context and early-reaction queues originally retained 32 entries each. v1.3.2 raises both capacities to 256 so a 48-projectile same-tick impact preserves every live correlation record until the corresponding native reaction is processed. Repeated hits on an already-tracked victim reuse the managed impact position instead of resampling native bones. Fatal-hit detection uses the collision packet's runtime `IsFatalDamage` getter rather than `Agent.Health`, and cinematic subjects are detached from their Agent reference when removal begins so later camera ticks use the stored position.
+
+Synthetic continuation creation uses only managed collision position and direction values with a fixed 1.25-metre exit distance. Mastery range accounting likewise uses the collision position and the core's cached shot origin rather than victim or shooter position pointers. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
 
 ## Outputs
 
