@@ -42,6 +42,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _pendingHitVictimsField;
         private static FieldInfo _confirmedKillCountField;
         private static MethodInfo _autoguidanceRuntimeMethod;
+        private static MethodInfo _agentIsEnemyOfMethod;
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
@@ -55,6 +56,10 @@ namespace GuidedArrow.Progression
             _pendingHitVictimsField = AccessTools.Field(behaviorType, "_pendingHitVictims");
             _confirmedKillCountField = AccessTools.Field(behaviorType, "_confirmedCinematicKillCount");
             _autoguidanceRuntimeMethod = AccessTools.Method(behaviorType, "IsAutoguidanceRuntimeActive");
+            _agentIsEnemyOfMethod = AccessTools.Method(
+                typeof(Agent),
+                "IsEnemyOf",
+                new[] { typeof(Agent) });
 
             MethodInfo terminal = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -117,18 +122,9 @@ namespace GuidedArrow.Progression
                 int generation = (int)_generationField.GetValue(__instance);
                 if (generation <= 0) return;
 
+                if (!HasHostileVictim(__instance, shooter)) return;
+
                 int killCount = ReadInt(_confirmedKillCountField, __instance, 0);
-                bool hadHit = killCount > 0 || _hitVictimField?.GetValue(__instance) != null;
-
-                if (!hadHit && _pendingHitVictimsField != null)
-                {
-                    object pending = _pendingHitVictimsField.GetValue(__instance);
-                    if (pending is ICollection collection && collection.Count > 0)
-                        hadHit = true;
-                }
-
-                if (!hadHit) return;
-
                 Vec3 origin = ReadVec3(_shotOriginField, __instance);
                 Vec3 impact = ReadVec3(_impactPositionField, __instance);
                 float distance = (impact - origin).Length;
@@ -167,6 +163,46 @@ namespace GuidedArrow.Progression
             }
         }
 
+        private static bool HasHostileVictim(object instance, Agent shooter)
+        {
+            if (instance == null || shooter == null) return false;
+
+            try
+            {
+                Agent hitVictim = _hitVictimField?.GetValue(instance) as Agent;
+                if (IsHostile(shooter, hitVictim)) return true;
+
+                object pending = _pendingHitVictimsField?.GetValue(instance);
+                if (!(pending is IEnumerable victims)) return false;
+
+                foreach (object value in victims)
+                {
+                    if (value is Agent victim && IsHostile(shooter, victim))
+                        return true;
+                }
+            }
+            catch { }
+
+            return false;
+        }
+
+        private static bool IsHostile(Agent shooter, Agent victim)
+        {
+            if (shooter == null || victim == null || shooter.Team == null || victim.Team == null)
+                return false;
+
+            try
+            {
+                if (_agentIsEnemyOfMethod == null) return false;
+                object result = _agentIsEnemyOfMethod.Invoke(shooter, new object[] { victim });
+                return result is bool hostile && hostile;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static void FlushPrefix(object __instance)
         {
             if (__instance == null ||
@@ -193,8 +229,8 @@ namespace GuidedArrow.Progression
 
                 for (int kill = 0; kill < kills; kill++)
                 {
-                    // Synthetic non-negative keys are scoped by shot generation and therefore remain
-                    // deterministic without dereferencing post-impact Agent wrappers.
+                    // Terminal summaries are the sole progression accounting path in this build, so
+                    // deterministic per-generation ordinals cannot collide with a parallel hit path.
                     TryRecord(
                         progression,
                         summary.Generation,
