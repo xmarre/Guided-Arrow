@@ -24,8 +24,6 @@ namespace GuidedArrow.Progression
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
 
-            // Stop only the exact duplicate-victim PassThrough -> Stick continuation before the
-            // core reaches Mission.AddCustomMissile. This does not depend on mission missile counts.
             DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
