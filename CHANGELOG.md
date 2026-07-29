@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.2
+
+- Prevents terminal impacts on already-resolved targets from creating an additional synthetic penetration continuation.
+- Preserves legitimate continuation when a guided projectile penetrates into a different live target.
+- Defers the final Autoguidance swarm terminal handoff until tracked missiles and all collision-owned deferred queues have drained.
+- Requires two consecutive clean display ticks before beginning the final cinematic or return transition.
+- Cancels the deferred handoff when the core has already transitioned normally or guidance resumes.
+- Keeps progression-derived settings active for the complete guided-shot callback burst and restores the original MCM values afterward.
+- Moves mastery XP accounting to completed shot summaries on the display tick and requires a confirmed hostile victim.
+- Preserves live-registry missile validation, removal-safe Autoguidance retargeting and camera ownership repair.
+- Removes superseded diagnostics and disproven experimental patches from the production source tree.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the update through the maintained v1.3.2 sidecar.
+
 ## 1.3.1
 
 - Validates every controlled missile against Bannerlord's live mission registry before guidance, deferred-work and projectile-camera ticks.
