@@ -31,7 +31,7 @@ jobs:
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.3.2
+          name: GuidedArrow-v1.3.3
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
@@ -62,17 +62,15 @@ jobs:
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Guided projectile lifecycle
+          ### Final Autoguidance projectile teardown
 
-          - Prevents already-resolved target impacts from creating an additional synthetic penetration continuation.
-          - Preserves legitimate penetration continuation into a different live target.
-          - Defers the final Autoguidance swarm transition until tracked missiles and collision-owned deferred work have fully drained.
-          - Requires two consecutive clean display ticks before beginning the terminal cinematic or return handoff.
-          - Cancels the deferred handoff when the core has already transitioned normally or guidance resumes.
-          - Keeps shot-scoped progression settings stable throughout an entire impact callback burst and restores them safely afterward.
-          - Records mastery XP from completed shot summaries on the display tick and requires a confirmed hostile victim.
-          - Preserves live-missile registry validation, removal-safe Autoguidance retargeting and camera ownership repair.
-          - Keeps the verified v1.1.17 gameplay core byte-identical and applies all maintenance through the v1.3.2 sidecar.
+          - Restores the stable core's deferred native-missile cleanup after a final `PassThrough` impact exhausts the guided penetration budget.
+          - Prevents the final cinematic or camera-return handoff from starting while the native removal queue still owns projectile teardown.
+          - Makes the existing clean-display-tick gate observe the real native-removal queue instead of an artificially empty queue.
+          - Marks a terminal shot generation complete only after the terminal handoff returns successfully.
+          - Preserves normal core-owned terminal transitions and cancels the sidecar fallback when the core has already advanced state.
+          - Preserves Autoguidance targeting, penetration counts, damage, formations, camera framing and progression balance.
+          - Retains the byte-identical verified v1.1.17 gameplay core and applies the correction through the maintained v1.3.3 sidecar.
 
           ### Installation
 
