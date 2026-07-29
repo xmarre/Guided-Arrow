@@ -166,10 +166,11 @@ namespace GuidedArrow.Progression
                 int index = (int)_trackedIndexField.GetValue(__0);
                 state.RemovalGenerations[index] = generation;
 
-                // In the verified v1.1.17 core this private helper is reached by the penetration-budget
-                // PassThrough branch. Bannerlord/TOR already transitioned the native projectile, so do
-                // not force-delete it on the following mission tick; Guided Arrow only relinquishes it.
-                return false;
+                // Preserve the verified core's deferred native-removal queue. Native PassThrough keeps
+                // the projectile alive, and the core validates its exact identity and generation before
+                // removing it on the following mission tick. The sidecar records only the correlation
+                // needed for its terminal fallback and must not bypass that ownership boundary.
+                return true;
             }
             catch
             {
@@ -258,12 +259,12 @@ namespace GuidedArrow.Progression
                     return;
                 }
 
-                pending.CompletedTerminalGeneration = generation;
-                pending.RequestedTerminalGeneration = -1;
                 pending.SawCleanDisplayTick = false;
                 _terminalMethod.Invoke(
                     __instance,
                     new object[] { "PenetrationBudgetExhausted/FinalTrackedMissile/DeferredDisplayTick" });
+                pending.CompletedTerminalGeneration = generation;
+                pending.RequestedTerminalGeneration = -1;
             }
             catch
             {
