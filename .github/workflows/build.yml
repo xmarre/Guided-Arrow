@@ -40,36 +40,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Commit final v1.3.3 generated outputs
-        if: github.event_name == 'pull_request' && github.event.pull_request.number == 5 && github.event.pull_request.head.repo.full_name == github.repository
-        shell: pwsh
-        run: |
-          $commitMessage = "Commit v1.3.3 generated outputs"
-          $headSubject = (git log -1 --pretty=%s).Trim()
-          if ($headSubject -eq $commitMessage) {
-            Write-Host "Generated output commit already exists."
-            exit 0
-          }
-
-          git add -A -- module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.dll module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.pdb dist checksums/SHA256SUMS.txt
-          $staged = @(git diff --cached --name-only)
-          if ($staged.Count -eq 0) {
-            Write-Host "No generated output changes to commit."
-            exit 0
-          }
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          $tree = (git write-tree).Trim()
-          $parent = "${{ github.event.pull_request.head.sha }}"
-          git fetch --no-tags --depth=1 origin $parent
-          $commit = ($commitMessage | git commit-tree $tree -p $parent).Trim()
-          if (-not $commit) {
-            throw "Failed to create generated-output commit."
-          }
-
-          git push origin "$commit`:refs/heads/${{ github.head_ref }}"
-
       - name: Resolve release version
         id: release_meta
         if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')
