@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -12,16 +13,20 @@ namespace GuidedArrow.Progression
     /// PassThrough exhausts the configured guided penetration budget but does not complete the
     /// terminal swarm transition when the last tracked projectile disappears.
     ///
-    /// Concentrated volleys can enter this branch for many projectiles in one callback window, so
-    /// pending removals are tracked per behavior instance and shot generation rather than in one
-    /// thread-static slot.
+    /// The terminal transition must not be invoked from RemoveTrackedMissile itself. That method can
+    /// run inside Bannerlord's native collision callback, and starting the kill cinematic there can
+    /// race the final Autoguidance impact, deferred collision contexts and native-removal queues.
+    /// Instead, the handoff is requested per shot generation and executed only after two clean display
+    /// ticks confirm that all collision-owned work has drained.
     /// </summary>
     internal static class FinalMissileTerminalHandoffPatch
     {
         private sealed class PendingState
         {
             internal readonly Dictionary<int, int> RemovalGenerations = new Dictionary<int, int>();
-            internal int TerminalGeneration = -1;
+            internal int RequestedTerminalGeneration = -1;
+            internal int CompletedTerminalGeneration = -1;
+            internal bool SawCleanDisplayTick;
         }
 
         private static readonly ConditionalWeakTable<object, PendingState> Pending =
@@ -31,6 +36,10 @@ namespace GuidedArrow.Progression
         private static FieldInfo _stateField;
         private static FieldInfo _generationField;
         private static FieldInfo _trackedIndexField;
+        private static FieldInfo _pendingCollisionContextsField;
+        private static FieldInfo _earlyCollisionReactionsField;
+        private static FieldInfo _pendingContinuationSpawnsField;
+        private static FieldInfo _pendingNativeMissileRemovalsField;
         private static MethodInfo _terminalMethod;
 
         internal static void Install(Harmony harmony, Type behaviorType)
@@ -44,6 +53,10 @@ namespace GuidedArrow.Progression
             _stateField = AccessTools.Field(behaviorType, "_state");
             _generationField = AccessTools.Field(behaviorType, "_activeShotGeneration");
             _trackedIndexField = AccessTools.Field(trackedType, "Index");
+            _pendingCollisionContextsField = AccessTools.Field(behaviorType, "_pendingCollisionContexts");
+            _earlyCollisionReactionsField = AccessTools.Field(behaviorType, "_earlyCollisionReactions");
+            _pendingContinuationSpawnsField = AccessTools.Field(behaviorType, "_pendingContinuationSpawns");
+            _pendingNativeMissileRemovalsField = AccessTools.Field(behaviorType, "_pendingNativeMissileRemovals");
             _terminalMethod = AccessTools.Method(
                 behaviorType,
                 "HandleGuidedSwarmTerminal",
@@ -73,11 +86,15 @@ namespace GuidedArrow.Progression
             MethodInfo removePostfix = AccessTools.Method(
                 typeof(FinalMissileTerminalHandoffPatch),
                 nameof(RemoveTrackedPostfix));
+            MethodInfo displayPostfix = AccessTools.Method(
+                typeof(FinalMissileTerminalHandoffPatch),
+                nameof(DisplayTickPostfix));
             MethodInfo clearPrefix = AccessTools.Method(
                 typeof(FinalMissileTerminalHandoffPatch),
                 nameof(ClearPrefix));
 
-            if (queuePrefix == null || removePostfix == null || clearPrefix == null) return;
+            if (queuePrefix == null || removePostfix == null || displayPostfix == null || clearPrefix == null)
+                return;
 
             try
             {
@@ -87,6 +104,19 @@ namespace GuidedArrow.Progression
                 harmony.Patch(
                     removeTracked,
                     postfix: new HarmonyMethod(removePostfix) { priority = Priority.Last });
+
+                foreach (MethodInfo method in behaviorType
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(candidate => candidate.Name == "OnPreDisplayMissionTick" && !candidate.IsAbstract))
+                {
+                    try
+                    {
+                        harmony.Patch(
+                            method,
+                            postfix: new HarmonyMethod(displayPostfix) { priority = Priority.Last });
+                    }
+                    catch { }
+                }
 
                 foreach (string methodName in new[] { "StartGuidedShot", "ResetAll" })
                 {
@@ -150,22 +180,111 @@ namespace GuidedArrow.Progression
                 pending.RemovalGenerations.Remove(removedIndex);
 
                 int currentGeneration = (int)_generationField.GetValue(__instance);
-                if (queuedGeneration != currentGeneration || pending.TerminalGeneration == currentGeneration)
+                if (queuedGeneration != currentGeneration ||
+                    pending.CompletedTerminalGeneration == currentGeneration)
                     return;
 
                 IList tracked = _trackedMissilesField.GetValue(__instance) as IList;
                 int state = (int)_stateField.GetValue(__instance);
                 if (tracked == null || tracked.Count != 0 || state != 2) return;
 
-                // Mark first to prevent a nested terminal callback from invoking the handoff twice.
-                pending.TerminalGeneration = currentGeneration;
-                _terminalMethod.Invoke(
-                    __instance,
-                    new object[] { "PenetrationBudgetExhausted/FinalTrackedMissile" });
+                // Record the missing terminal transition, but never invoke it while the native impact
+                // callback is still unwinding. A later display tick owns the actual handoff.
+                pending.RequestedTerminalGeneration = currentGeneration;
+                pending.SawCleanDisplayTick = false;
             }
             catch
             {
                 // The core remains authoritative if its private layout changes.
+            }
+        }
+
+        private static void DisplayTickPostfix(object __instance)
+        {
+            if (__instance == null ||
+                !Pending.TryGetValue(__instance, out PendingState pending) ||
+                pending == null ||
+                pending.RequestedTerminalGeneration < 0)
+                return;
+
+            try
+            {
+                int generation = (int)_generationField.GetValue(__instance);
+                if (generation != pending.RequestedTerminalGeneration)
+                {
+                    pending.RequestedTerminalGeneration = -1;
+                    pending.SawCleanDisplayTick = false;
+                    return;
+                }
+
+                int state = (int)_stateField.GetValue(__instance);
+                IList tracked = _trackedMissilesField.GetValue(__instance) as IList;
+                if (state != 2 || tracked == null || tracked.Count != 0)
+                {
+                    // The core transitioned by itself or guidance resumed. Do not duplicate it.
+                    if (state != 2)
+                    {
+                        pending.CompletedTerminalGeneration = generation;
+                        pending.RequestedTerminalGeneration = -1;
+                    }
+                    pending.SawCleanDisplayTick = false;
+                    return;
+                }
+
+                if (HasPendingCollisionWork(__instance))
+                {
+                    pending.SawCleanDisplayTick = false;
+                    return;
+                }
+
+                // One completely clean display tick proves that the last impact callback and all
+                // deferred missile work have finished. Execute on the following clean display tick.
+                if (!pending.SawCleanDisplayTick)
+                {
+                    pending.SawCleanDisplayTick = true;
+                    return;
+                }
+
+                pending.CompletedTerminalGeneration = generation;
+                pending.RequestedTerminalGeneration = -1;
+                pending.SawCleanDisplayTick = false;
+                _terminalMethod.Invoke(
+                    __instance,
+                    new object[] { "PenetrationBudgetExhausted/FinalTrackedMissile/DeferredDisplayTick" });
+            }
+            catch
+            {
+                pending.SawCleanDisplayTick = false;
+            }
+        }
+
+        private static bool HasPendingCollisionWork(object instance)
+        {
+            return ReadCount(_pendingCollisionContextsField, instance) > 0 ||
+                   ReadCount(_earlyCollisionReactionsField, instance) > 0 ||
+                   ReadCount(_pendingContinuationSpawnsField, instance) > 0 ||
+                   ReadCount(_pendingNativeMissileRemovalsField, instance) > 0;
+        }
+
+        private static int ReadCount(FieldInfo field, object instance)
+        {
+            if (field == null || instance == null) return 0;
+
+            try
+            {
+                object value = field.GetValue(instance);
+                if (value == null) return 0;
+                if (value is ICollection collection) return collection.Count;
+
+                PropertyInfo countProperty = value.GetType().GetProperty(
+                    "Count",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                object count = countProperty?.GetValue(value, null);
+                return count is int integer ? integer : 0;
+            }
+            catch
+            {
+                return 0;
             }
         }
 
