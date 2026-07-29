@@ -37,7 +37,7 @@ The maintained `GuidedArrow.Progression` project contains:
 - removal-safe Autoguidance target transitions;
 - terminal continuation and final-swarm lifecycle guards.
 
-## v1.3.2 runtime model
+## v1.3.3 runtime model
 
 The normal Guided Arrow MCM settings are never Harmony-patched at getter level. The sidecar applies the effective mastery limits once before Guided Arrow evaluates a shot, keeps that snapshot active through the complete callback burst, and restores the original values only after terminal work reaches a stable display tick.
 
@@ -47,14 +47,14 @@ Before stable-core guidance and projectile-camera entry points execute, the side
 
 A terminal collision sourced from `OnMissileHitAlreadyDead` cannot create another synthetic penetration continuation. Legitimate continuation into a different live victim remains unchanged.
 
-When the final tracked projectile disappears through the penetration-budget path, the sidecar records a generation-scoped terminal request instead of invoking the cinematic transition inside the collision callback. The request remains blocked until the tracked set and all collision, early-reaction, continuation-spawn and native-removal queues are empty for two consecutive display ticks. It is cancelled when the core transitions normally or guidance resumes.
+When the final tracked projectile exhausts its guided penetration budget after a native `PassThrough`, the sidecar records a generation-scoped terminal fallback and preserves the core's deferred native-removal queue. The core validates and removes the still-live native projectile on its following mission tick. The fallback remains blocked until tracked missiles and all collision, early-reaction, continuation-spawn and native-removal queues are empty for two consecutive display ticks. It is cancelled when the core transitions normally or guidance resumes, and the generation is marked complete only after the terminal handoff returns successfully.
 
 Mastery XP is captured from the completed shot summary and recorded on the display tick. Teamless, friendly and allied impacts are rejected because a hostile victim must be confirmed before the summary is queued.
 
 ## Outputs
 
-- `dist/GuidedArrow-v1.3.2-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
-- `dist/GuidedArrow-v1.3.2-SOURCE.zip`
+- `dist/GuidedArrow-v1.3.3-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
+- `dist/GuidedArrow-v1.3.3-SOURCE.zip`
 - `checksums/SHA256SUMS.txt`
 
 The source archive excludes build intermediates and includes the current source, module tree, solution, documentation and build script.
