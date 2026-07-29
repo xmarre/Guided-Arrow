@@ -8,18 +8,17 @@ using HarmonyLib;
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Suppresses only the synthetic continuation produced after the core itself identifies the
-    /// duplicate confirmed-kill path as OnMissileHitAlreadyDead. This avoids reconstructing victim
-    /// identity from OnMissileHit arguments and keys the guard directly from the verified core event.
+    /// Suppresses the synthetic continuation produced after the core itself identifies
+    /// OnMissileHitAlreadyDead. That source means the authoritative victim outcome is already
+    /// complete; a following terminal Stick must not create another custom missile.
     /// </summary>
     internal static class DuplicateVictimContinuationGuardPatch
     {
         private sealed class ShotState
         {
             internal int Generation = -1;
-            internal readonly HashSet<int> PassedThrough = new HashSet<int>();
             internal readonly HashSet<int> BlockedContinuations = new HashSet<int>();
-            internal bool DuplicateConfirmedKillPending;
+            internal bool AlreadyDeadContinuationPending;
         }
 
         private static readonly ConditionalWeakTable<object, ShotState> States =
@@ -130,7 +129,7 @@ namespace GuidedArrow.Progression
                 if (!string.Equals(source, "OnMissileHitAlreadyDead", StringComparison.Ordinal)) return;
 
                 int generation = (int)_generationField.GetValue(__instance);
-                GetState(__instance, generation).DuplicateConfirmedKillPending = true;
+                GetState(__instance, generation).AlreadyDeadContinuationPending = true;
             }
             catch { }
         }
@@ -146,19 +145,13 @@ namespace GuidedArrow.Progression
                 int generation = (int)_generationField.GetValue(__instance);
                 ShotState state = GetState(__instance, generation);
 
-                // MissileCollisionReaction: Stick=0, PassThrough=1.
-                if (reaction == 1)
-                {
-                    state.PassedThrough.Add(index);
-                    return;
-                }
-
-                if (reaction == 0 &&
-                    state.DuplicateConfirmedKillPending &&
-                    state.PassedThrough.Contains(index))
+                // MissileCollisionReaction.Stick = 0. The previous guard also required a recorded
+                // PassThrough, but the reproduced later crash reaches OnMissileHitAlreadyDead ->
+                // Stick without a PassThrough callback in that shot generation.
+                if (reaction == 0 && state.AlreadyDeadContinuationPending)
                 {
                     state.BlockedContinuations.Add(index);
-                    state.DuplicateConfirmedKillPending = false;
+                    state.AlreadyDeadContinuationPending = false;
                 }
             }
             catch { }
@@ -194,9 +187,8 @@ namespace GuidedArrow.Progression
             if (state.Generation == generation) return state;
 
             state.Generation = generation;
-            state.PassedThrough.Clear();
             state.BlockedContinuations.Clear();
-            state.DuplicateConfirmedKillPending = false;
+            state.AlreadyDeadContinuationPending = false;
             return state;
         }
 
