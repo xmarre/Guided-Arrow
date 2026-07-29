@@ -62,6 +62,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           $tree = (git write-tree).Trim()
           $parent = "${{ github.event.pull_request.head.sha }}"
+          git fetch --no-tags --depth=1 origin $parent
           $commit = ($commitMessage | git commit-tree $tree -p $parent).Trim()
           if (-not $commit) {
             throw "Failed to create generated-output commit."
