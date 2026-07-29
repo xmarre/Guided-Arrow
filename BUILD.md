@@ -34,24 +34,27 @@ The maintained `GuidedArrow.Progression` project contains:
 - narrow runtime patches around the verified core;
 - split-penetration stability and additive native-volley support;
 - exact live-registry validation for stable-core missile wrappers;
-- deferred and removal-safe Autoguidance target transitions.
+- removal-safe Autoguidance target transitions;
+- terminal continuation and final-swarm lifecycle guards.
 
-## v1.3.1 runtime model
+## v1.3.2 runtime model
 
-The normal Guided Arrow MCM settings are never Harmony-patched at getter level. During a Guided Arrow mission callback, the sidecar temporarily applies the effective mastery limits to the settings backing fields and restores every original value in a Harmony finalizer. This keeps the MCM page stable and makes the configured values upper limits for progression.
+The normal Guided Arrow MCM settings are never Harmony-patched at getter level. The sidecar applies the effective mastery limits once before Guided Arrow evaluates a shot, keeps that snapshot active through the complete callback burst, and restores the original values only after terminal work reaches a stable display tick.
 
 Guided Release's four-second starting cap is enforced directly against the core's real-time guidance counter because the verified core internally clamps its own setting to at least five seconds.
 
-Before stable-core guidance and projectile-camera entry points execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. A legitimate wrapper replacement is first passed through the core's existing shooter/entity/item identity refresh. Registry-missing, identity-mismatched or recycled entries are then removed through the core's cleanup path without calling their native missile methods. Leader and camera ownership are repaired only from the remaining exact live entries, while intentional camera index `-1` states remain suspended.
+Before stable-core guidance and projectile-camera entry points execute, the sidecar compares every tracked missile index and wrapper reference against Bannerlord's managed mission missile dictionary. A legitimate wrapper replacement is first passed through the core's existing shooter/entity/item identity refresh. Registry-missing, identity-mismatched or recycled entries are removed through the core's cleanup path without calling their native missile methods. Leader and camera ownership are repaired only from the remaining exact live entries, while intentional camera index `-1` states remain suspended.
 
-A penetration collision no longer performs full target collection, skeleton/head lookup or route assignment inside the native collision callback. The impacted target is recorded as consumed through managed references, the current target is cleared when necessary, and the existing fallback direction is retained. Planned-route advancement or fresh target selection then occurs through the normal display-tick path after the original projectile has survived native pass-through or a synthetic continuation has been created.
+A terminal collision sourced from `OnMissileHitAlreadyDead` cannot create another synthetic penetration continuation. Legitimate continuation into a different live victim remains unchanged.
 
-The desired continuation exit distance is calculated synchronously during the original collision callback while the victim is still live. Only that float survives into the deferred worker. Synthetic continuation creation therefore preserves the previous depth-aware offset without reading the old victim's position, AgentVisuals or native entity on the following tick. Agent-removal callbacks purge that exact agent from active, planned, consumed and shared target collections before later Autoguidance scans.
+When the final tracked projectile disappears through the penetration-budget path, the sidecar records a generation-scoped terminal request instead of invoking the cinematic transition inside the collision callback. The request remains blocked until the tracked set and all collision, early-reaction, continuation-spawn and native-removal queues are empty for two consecutive display ticks. It is cancelled when the core transitions normally or guidance resumes.
+
+Mastery XP is captured from the completed shot summary and recorded on the display tick. Teamless, friendly and allied impacts are rejected because a hostile victim must be confirmed before the summary is queued.
 
 ## Outputs
 
-- `dist/GuidedArrow-v1.3.1-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
-- `dist/GuidedArrow-v1.3.1-SOURCE.zip`
+- `dist/GuidedArrow-v1.3.2-Bannerlord-1.3.15-to-1.4.7-Universal.zip`
+- `dist/GuidedArrow-v1.3.2-SOURCE.zip`
 - `checksums/SHA256SUMS.txt`
 
 The source archive excludes build intermediates and includes the current source, module tree, solution, documentation and build script.

@@ -49,6 +49,7 @@ namespace GuidedArrow.Progression
 
         public override void OnGameEnd(Game game)
         {
+            ProgressionRuntimeSettingsPatch.RestoreActive();
             CancelPendingCharacterScreenOpen();
             _characterButton.Detach();
             ProgressionService.Detach();
@@ -87,6 +88,7 @@ namespace GuidedArrow.Progression
 
         protected override void OnSubModuleUnloaded()
         {
+            ProgressionRuntimeSettingsPatch.RestoreActive();
             try { _harmony?.UnpatchAll("guidedarrow.progression.1.3.0"); } catch { }
             CancelPendingCharacterScreenOpen();
             _characterButton.Detach();
