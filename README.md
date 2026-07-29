@@ -4,18 +4,18 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 ## Current repository snapshot
 
-- Mod version: **1.3.1 test branch**
+- Mod version: **1.3.2**
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
 - Progression/MCM/UI and stable-core sidecar patches: `src/GuidedArrow.Progression`
 - Runtime module: `module/GuidedArrow`
 
-The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native crash when missions started. The recovered implementation was removed. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
+The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native mission-start failure. The recovered implementation was removed. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.1 hardens the long-flight and repeated-penetration lifecycle around the binary core. Before guidance and projectile-camera ticks, every tracked missile must either retain its exact registered wrapper or pass the core's existing shooter/entity/item identity refresh after a legitimate native wrapper replacement. Registry-missing, identity-mismatched and recycled entries are cleaned up without invoking expired native handles. Post-penetration target changes are deferred out of the native collision callback until the continuing projectile exists on a stable subsequent tick. Removed victims are purged from active and planned Autoguidance state. The depth-aware continuation exit distance is captured while the victim is still live, so deferred synthetic continuation creation no longer reads the previous victim's native position, visuals or entity.
+v1.3.2 hardens the terminal lifecycle for concentrated volleys and long-running Autoguidance swarms. A terminal callback for an already-resolved victim can no longer create an extra synthetic penetration continuation. When the last controlled projectile disappears through the penetration-budget path, the sidecar records a generation-scoped terminal request rather than starting cinematic/camera work inside the native collision callback. The terminal handoff executes only after all tracked missiles and collision-owned deferred queues are empty for two consecutive display ticks. Progression settings remain stable for the entire shot callback burst, and terminal mastery XP is deferred to the display tick and restricted to hostile victims.
 
 ## Repository layout
 
@@ -91,7 +91,7 @@ The rank curve is quadratic through the main campaign and becomes moderately ste
 
 ### MCM safety
 
-Progression no longer patches the normal Guided Arrow MCM property getters. Mastery limits are applied only while Guided Arrow mission callbacks execute, and every original setting value is restored immediately afterwards. The normal Guided Arrow MCM therefore remains editable and displays the player's actual configured upper limits.
+Progression no longer patches the normal Guided Arrow MCM property getters. Mastery limits are applied once before Guided Arrow evaluates a shot, remain stable through its complete callback burst, and restore after terminal work reaches a clean display tick. The normal Guided Arrow MCM therefore remains editable and displays the player's configured upper limits.
 
 Guided Release rank 1 is enforced by a direct real-time timeout of **4.0 seconds**, bypassing the stable core's internal five-second minimum clamp. Higher Guided Release and Master of the Curve levels extend or eventually release that cap.
 
