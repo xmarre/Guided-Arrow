@@ -31,7 +31,7 @@ jobs:
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.3.1
+          name: GuidedArrow-v1.3.2
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
@@ -62,18 +62,17 @@ jobs:
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Autoguidance and penetration stability
+          ### Guided projectile lifecycle
 
-          - Validates every controlled missile against Bannerlord's live mission registry before guidance and camera ticks.
-          - Preserves legitimate native wrapper replacement only after the core's existing identity refresh confirms the same projectile.
-          - Removes registry-missing, identity-mismatched or recycled wrappers before the core can read or steer them.
-          - Defers post-penetration target advancement until the continuing projectile exists on the next stable mission/display tick.
-          - Prevents collision-time nearby-agent scans, skeleton/head lookups and route assignment during native missile teardown.
-          - Captures the depth-aware continuation exit distance during collision and carries only that float into deferred creation.
-          - Removes deferred access to the previous victim's position, visuals and native entity when spawning synthetic continuations.
-          - Purges removed agents from active, planned and consumed Autoguidance target state.
-          - Preserves intentional camera suspension and return states instead of restoring a stale projectile camera owner.
-          - Keeps the verified v1.1.17 gameplay core byte-identical and applies the correction through the maintained sidecar.
+          - Prevents already-resolved target impacts from creating an additional synthetic penetration continuation.
+          - Preserves legitimate penetration continuation into a different live target.
+          - Defers the final Autoguidance swarm transition until tracked missiles and collision-owned deferred work have fully drained.
+          - Requires two consecutive clean display ticks before beginning the terminal cinematic or return handoff.
+          - Cancels the deferred handoff when the core has already transitioned normally or guidance resumes.
+          - Keeps shot-scoped progression settings stable throughout an entire impact callback burst and restores them safely afterward.
+          - Records mastery XP from completed shot summaries on the display tick and requires a confirmed hostile victim.
+          - Preserves live-missile registry validation, removal-safe Autoguidance retargeting and camera ownership repair.
+          - Keeps the verified v1.1.17 gameplay core byte-identical and applies all maintenance through the v1.3.2 sidecar.
 
           ### Installation
 
