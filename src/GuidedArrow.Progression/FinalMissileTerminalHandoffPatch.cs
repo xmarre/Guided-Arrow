@@ -75,6 +75,10 @@ namespace GuidedArrow.Progression
                 _stateField == null ||
                 _generationField == null ||
                 _trackedIndexField == null ||
+                _pendingCollisionContextsField == null ||
+                _earlyCollisionReactionsField == null ||
+                _pendingContinuationSpawnsField == null ||
+                _pendingNativeMissileRemovalsField == null ||
                 _terminalMethod == null ||
                 queueRemoval == null ||
                 removeTracked == null)
@@ -146,16 +150,25 @@ namespace GuidedArrow.Progression
 
             try
             {
+                int generation = (int)_generationField.GetValue(__instance);
                 PendingState state = Pending.GetOrCreateValue(__instance);
                 if (state.RemovalGenerations.Count >= 256)
-                    state.RemovalGenerations.Clear();
+                {
+                    foreach (int staleIndex in state.RemovalGenerations
+                        .Where(entry => entry.Value != generation)
+                        .Select(entry => entry.Key)
+                        .ToList())
+                    {
+                        state.RemovalGenerations.Remove(staleIndex);
+                    }
+                }
 
                 int index = (int)_trackedIndexField.GetValue(__0);
-                int generation = (int)_generationField.GetValue(__instance);
                 state.RemovalGenerations[index] = generation;
 
-                // Bannerlord/TOR already returned PassThrough. Do not force-delete that transitioned
-                // native projectile on the following mission tick. Guided Arrow only relinquishes it.
+                // In the verified v1.1.17 core this private helper is reached by the penetration-budget
+                // PassThrough branch. Bannerlord/TOR already transitioned the native projectile, so do
+                // not force-delete it on the following mission tick; Guided Arrow only relinquishes it.
                 return false;
             }
             catch
@@ -268,23 +281,25 @@ namespace GuidedArrow.Progression
 
         private static int ReadCount(FieldInfo field, object instance)
         {
-            if (field == null || instance == null) return 0;
+            if (field == null || instance == null) return int.MaxValue;
 
             try
             {
                 object value = field.GetValue(instance);
-                if (value == null) return 0;
+                if (value == null) return int.MaxValue;
                 if (value is ICollection collection) return collection.Count;
 
                 PropertyInfo countProperty = value.GetType().GetProperty(
                     "Count",
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                object count = countProperty?.GetValue(value, null);
-                return count is int integer ? integer : 0;
+                if (countProperty == null) return int.MaxValue;
+
+                object count = countProperty.GetValue(value, null);
+                return count is int integer ? integer : int.MaxValue;
             }
             catch
             {
-                return 0;
+                return int.MaxValue;
             }
         }
 
