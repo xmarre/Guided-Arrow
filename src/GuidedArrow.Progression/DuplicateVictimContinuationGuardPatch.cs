@@ -4,33 +4,28 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
-using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Suppresses only the synthetic continuation produced by the exact duplicate-hit sequence
-    /// observed in the point-blank concentrated volley: the same tracked missile first receives
-    /// PassThrough, confirms a kill, then reports another hit on the same victim and resolves Stick.
-    /// The native projectile already completed its authoritative collision path; creating another
-    /// custom missile from that duplicate terminal callback can raise AccessViolationException.
+    /// Suppresses only the synthetic continuation produced after the core itself identifies the
+    /// duplicate confirmed-kill path as OnMissileHitAlreadyDead. This avoids reconstructing victim
+    /// identity from OnMissileHit arguments and keys the guard directly from the verified core event.
     /// </summary>
     internal static class DuplicateVictimContinuationGuardPatch
     {
         private sealed class ShotState
         {
             internal int Generation = -1;
-            internal readonly Dictionary<int, int> FirstVictimByMissile = new Dictionary<int, int>();
             internal readonly HashSet<int> PassedThrough = new HashSet<int>();
-            internal readonly HashSet<int> DuplicateKilledVictimHits = new HashSet<int>();
             internal readonly HashSet<int> BlockedContinuations = new HashSet<int>();
+            internal bool DuplicateConfirmedKillPending;
         }
 
         private static readonly ConditionalWeakTable<object, ShotState> States =
             new ConditionalWeakTable<object, ShotState>();
 
         private static FieldInfo _generationField;
-        private static FieldInfo _confirmedKillsField;
         private static FieldInfo _trackedIndexField;
 
         internal static void Install(Harmony harmony, Type behaviorType)
@@ -38,7 +33,6 @@ namespace GuidedArrow.Progression
             if (harmony == null || behaviorType == null) return;
 
             _generationField = AccessTools.Field(behaviorType, "_activeShotGeneration");
-            _confirmedKillsField = AccessTools.Field(behaviorType, "_confirmedCinematicKillCount");
 
             MethodInfo spawn = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -46,16 +40,21 @@ namespace GuidedArrow.Progression
                     method.Name == "TrySpawnPenetrationContinuation" &&
                     method.ReturnType == typeof(bool) &&
                     method.GetParameters().Length == 3);
-            if (spawn == null) return;
+            MethodInfo confirmedKill = behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(method =>
+                    method.Name == "HandleConfirmedKill" &&
+                    method.GetParameters().Length == 2 &&
+                    method.GetParameters()[1].ParameterType == typeof(string));
+            if (spawn == null || confirmedKill == null || _generationField == null) return;
 
             Type trackedType = spawn.GetParameters()[0].ParameterType;
             _trackedIndexField = AccessTools.Field(trackedType, "Index");
-            if (_generationField == null || _confirmedKillsField == null || _trackedIndexField == null)
-                return;
+            if (_trackedIndexField == null) return;
 
-            MethodInfo hitPrefix = AccessTools.Method(
+            MethodInfo killPrefix = AccessTools.Method(
                 typeof(DuplicateVictimContinuationGuardPatch),
-                nameof(HitPrefix));
+                nameof(ConfirmedKillPrefix));
             MethodInfo reactionPrefix = AccessTools.Method(
                 typeof(DuplicateVictimContinuationGuardPatch),
                 nameof(ReactionPrefix));
@@ -66,20 +65,18 @@ namespace GuidedArrow.Progression
                 typeof(DuplicateVictimContinuationGuardPatch),
                 nameof(ClearPrefix));
 
-            if (hitPrefix == null || reactionPrefix == null || spawnPrefix == null || clearPrefix == null)
+            if (killPrefix == null || reactionPrefix == null || spawnPrefix == null || clearPrefix == null)
                 return;
 
-            foreach (MethodInfo method in behaviorType
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(candidate => candidate.Name == "OnMissileHit" && !candidate.IsAbstract))
+            try
             {
-                try
-                {
-                    harmony.Patch(
-                        method,
-                        prefix: new HarmonyMethod(hitPrefix) { priority = int.MaxValue });
-                }
-                catch { }
+                harmony.Patch(
+                    confirmedKill,
+                    prefix: new HarmonyMethod(killPrefix) { priority = int.MaxValue });
+            }
+            catch
+            {
+                return;
             }
 
             foreach (MethodInfo method in behaviorType
@@ -123,44 +120,17 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static void HitPrefix(object __instance, object[] __args)
+        private static void ConfirmedKillPrefix(object __instance, object[] __args)
         {
-            if (__instance == null || __args == null) return;
+            if (__instance == null || __args == null || __args.Length < 2) return;
 
             try
             {
-                Agent shooter = __args.OfType<Agent>().FirstOrDefault();
-                Agent victim = __args.OfType<Agent>().FirstOrDefault(agent => !ReferenceEquals(agent, shooter));
-                if (victim == null) return;
+                string source = __args[1] as string;
+                if (!string.Equals(source, "OnMissileHitAlreadyDead", StringComparison.Ordinal)) return;
 
-                AttackCollisionData collision = default;
-                bool foundCollision = false;
-                for (int i = 0; i < __args.Length; i++)
-                {
-                    if (!(__args[i] is AttackCollisionData candidate)) continue;
-                    collision = candidate;
-                    foundCollision = true;
-                    break;
-                }
-                if (!foundCollision || !collision.IsMissile) return;
-
-                int index = collision.AffectorWeaponSlotOrMissileIndex;
                 int generation = (int)_generationField.GetValue(__instance);
-                ShotState state = GetState(__instance, generation);
-                int victimKey = RuntimeHelpers.GetHashCode(victim);
-
-                if (!state.FirstVictimByMissile.TryGetValue(index, out int firstVictim))
-                {
-                    state.FirstVictimByMissile[index] = victimKey;
-                    return;
-                }
-
-                if (firstVictim == victimKey &&
-                    state.PassedThrough.Contains(index) &&
-                    (int)_confirmedKillsField.GetValue(__instance) > 0)
-                {
-                    state.DuplicateKilledVictimHits.Add(index);
-                }
+                GetState(__instance, generation).DuplicateConfirmedKillPending = true;
             }
             catch { }
         }
@@ -180,12 +150,15 @@ namespace GuidedArrow.Progression
                 if (reaction == 1)
                 {
                     state.PassedThrough.Add(index);
+                    return;
                 }
-                else if (reaction == 0 &&
-                         state.PassedThrough.Contains(index) &&
-                         state.DuplicateKilledVictimHits.Contains(index))
+
+                if (reaction == 0 &&
+                    state.DuplicateConfirmedKillPending &&
+                    state.PassedThrough.Contains(index))
                 {
                     state.BlockedContinuations.Add(index);
+                    state.DuplicateConfirmedKillPending = false;
                 }
             }
             catch { }
@@ -221,10 +194,9 @@ namespace GuidedArrow.Progression
             if (state.Generation == generation) return state;
 
             state.Generation = generation;
-            state.FirstVictimByMissile.Clear();
             state.PassedThrough.Clear();
-            state.DuplicateKilledVictimHits.Clear();
             state.BlockedContinuations.Clear();
+            state.DuplicateConfirmedKillPending = false;
             return state;
         }
 
