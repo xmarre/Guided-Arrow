@@ -80,7 +80,17 @@ namespace GuidedArrow.Progression
 
             foreach (MethodInfo method in behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(candidate => candidate.Name == "ResolveCollisionReaction" && !candidate.IsAbstract))
+                .Where(candidate =>
+                {
+                    if (candidate.Name != "ResolveCollisionReaction" || candidate.IsAbstract)
+                        return false;
+
+                    ParameterInfo[] parameters = candidate.GetParameters();
+                    return parameters.Length >= 2 &&
+                           parameters[0].ParameterType == typeof(int) &&
+                           parameters[1].ParameterType.IsEnum &&
+                           Enum.GetNames(parameters[1].ParameterType).Contains("Stick");
+                }))
             {
                 try
                 {
@@ -134,25 +144,32 @@ namespace GuidedArrow.Progression
             catch { }
         }
 
-        private static void ReactionPrefix(object __instance, object[] __args)
+        private static void ReactionPrefix(object __instance, object[] __args, MethodBase __originalMethod)
         {
-            if (__instance == null || __args == null || __args.Length < 2) return;
+            if (__instance == null ||
+                __args == null ||
+                __args.Length < 2 ||
+                __originalMethod == null)
+                return;
 
             try
             {
-                int index = Convert.ToInt32(__args[0]);
-                int reaction = Convert.ToInt32(__args[1]);
+                ParameterInfo[] parameters = __originalMethod.GetParameters();
+                if (parameters.Length < 2 ||
+                    parameters[0].ParameterType != typeof(int) ||
+                    !parameters[1].ParameterType.IsEnum)
+                    return;
+
+                string reactionName = Enum.GetName(parameters[1].ParameterType, __args[1]);
+                if (!string.Equals(reactionName, "Stick", StringComparison.Ordinal)) return;
+
+                int index = (int)__args[0];
                 int generation = (int)_generationField.GetValue(__instance);
                 ShotState state = GetState(__instance, generation);
+                if (!state.AlreadyDeadContinuationPending) return;
 
-                // MissileCollisionReaction.Stick = 0. The previous guard also required a recorded
-                // PassThrough, but the reproduced later crash reaches OnMissileHitAlreadyDead ->
-                // Stick without a PassThrough callback in that shot generation.
-                if (reaction == 0 && state.AlreadyDeadContinuationPending)
-                {
-                    state.BlockedContinuations.Add(index);
-                    state.AlreadyDeadContinuationPending = false;
-                }
+                state.BlockedContinuations.Add(index);
+                state.AlreadyDeadContinuationPending = false;
             }
             catch { }
         }
