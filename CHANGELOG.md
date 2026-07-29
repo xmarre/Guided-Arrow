@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.3
+
+- Restores the stable core's deferred native-missile cleanup after a final `PassThrough` impact exhausts the guided penetration budget.
+- Prevents the final cinematic or camera-return handoff from starting while the native removal queue still owns projectile teardown.
+- Makes the clean-display-tick gate observe the real native-removal queue instead of an artificially empty queue.
+- Marks a terminal shot generation complete only after the terminal handoff returns successfully.
+- Preserves normal core-owned terminal transitions and cancels the sidecar fallback when the core has already advanced state.
+- Preserves Autoguidance targeting, penetration counts, damage, formations, camera framing and progression balance.
+- Validates the correction against the previously failing 48-projectile Autoguidance stress case.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the correction through the maintained v1.3.3 sidecar.
+
 ## 1.3.2
 
 - Prevents terminal impacts on already-resolved targets from creating an additional synthetic penetration continuation.
