@@ -10,7 +10,7 @@ $ProgressionBuildOut = Join-Path $Artifacts "progression-build"
 $Stage = Join-Path $Artifacts "stage"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
-$Version = "1.3.3"
+$Version = "1.3.4"
 $ExpectedCoreSha256 = "0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0"
 
 Remove-Item $Artifacts -Recurse -Force -ErrorAction SilentlyContinue
@@ -43,7 +43,7 @@ $SourceStage = Join-Path $Stage "GuidedArrow-v$Version-SOURCE"
 New-Item -ItemType Directory -Force -Path $SourceStage | Out-Null
 Copy-Item (Join-Path $Root "src") $SourceStage -Recurse -Force
 Copy-Item (Join-Path $Root "module") $SourceStage -Recurse -Force
-Copy-Item (Join-Path $Root "README.md"), (Join-Path $Root "CHANGELOG.md"), (Join-Path $Root "BUILD.md"), (Join-Path $Root "GuidedArrow.sln"), (Join-Path $Root "build.ps1") $SourceStage -Force
+Copy-Item (Join-Path $Root "README.md"), (Join-Path $Root "CONFIGURATION.md"), (Join-Path $Root "CHANGELOG.md"), (Join-Path $Root "BUILD.md"), (Join-Path $Root "GuidedArrow.sln"), (Join-Path $Root "build.ps1") $SourceStage -Force
 
 Get-ChildItem $SourceStage -Directory -Recurse -Force |
     Where-Object { $_.Name -in @('bin', 'obj', '__pycache__') } |
