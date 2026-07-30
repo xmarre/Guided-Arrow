@@ -23,6 +23,8 @@ namespace GuidedArrow.Progression
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
+            SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);
+            CameraControlPatch.Install(harmony, behaviorType);
 
             DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
