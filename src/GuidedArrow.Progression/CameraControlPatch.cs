@@ -22,6 +22,7 @@ namespace GuidedArrow.Progression
             new ConditionalWeakTable<object, ShotState>();
 
         private static FieldInfo _stateField;
+        private static FieldInfo _cameraFrameValidField;
         private static MethodInfo _beginReturnMethod;
         private static MethodInfo _releaseCameraMethod;
 
@@ -30,6 +31,7 @@ namespace GuidedArrow.Progression
             if (harmony == null || behaviorType == null) return;
 
             _stateField = AccessTools.Field(behaviorType, "_state");
+            _cameraFrameValidField = AccessTools.Field(behaviorType, "_cameraFrameValid");
             _beginReturnMethod = AccessTools.Method(
                 behaviorType,
                 "BeginReturn",
@@ -124,6 +126,8 @@ namespace GuidedArrow.Progression
 
             try
             {
+                if (!state.CameraWasShown && _cameraFrameValidField != null)
+                    _cameraFrameValidField.SetValue(__instance, false);
                 _beginReturnMethod.Invoke(__instance, new object[] { "KillCinematicDisabled", true });
                 return false;
             }
