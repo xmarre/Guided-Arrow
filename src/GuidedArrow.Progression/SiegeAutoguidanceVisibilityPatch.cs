@@ -141,13 +141,18 @@ namespace GuidedArrow.Progression
 
             IList candidates = _rankCandidatesField?.GetValue(__instance) as IList;
             IList heads = _candidateHeadsField?.GetValue(__instance) as IList;
-            if (candidates == null || heads == null) return;
+            if (candidates == null || heads == null || candidates.Count != heads.Count) return;
 
             int attemptsRemaining = candidates.Count;
             while (__result >= 0 && __result < candidates.Count && attemptsRemaining-- > 0)
             {
                 Agent selected = candidates[__result] as Agent;
-                if (selected == null || IsVisibleFromShooter(__instance, selected)) return;
+                if (selected == null)
+                {
+                    __result = -1;
+                    return;
+                }
+                if (IsVisibleFromShooter(__instance, selected)) return;
 
                 // Hidden candidates are removed from both parallel lists for this bounded
                 // reacquisition pass, then the unchanged core selector chooses again.
@@ -180,7 +185,7 @@ namespace GuidedArrow.Progression
             if (__result >= 0 && __result < candidates.Count)
             {
                 Agent selected = candidates[__result] as Agent;
-                if (selected != null && !IsVisibleFromShooter(__instance, selected)) __result = -1;
+                if (selected == null || !IsVisibleFromShooter(__instance, selected)) __result = -1;
             }
         }
 
@@ -190,7 +195,13 @@ namespace GuidedArrow.Progression
             if (settings != null && !settings.VisibleSiegeTargetsOnly) return false;
 
             Mission mission = Mission.Current;
-            if (mission == null) return false;
+            if (mission == null)
+            {
+                _cachedMission = null;
+                _cachedMissionIsSiege = false;
+                VisibilityCache.Clear();
+                return false;
+            }
             if (!ReferenceEquals(mission, _cachedMission))
             {
                 _cachedMission = mission;
