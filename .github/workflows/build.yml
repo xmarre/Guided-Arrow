@@ -28,8 +28,8 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool install --tool-path artifacts/tools ilspycmd --version 9.1.0.7988
-          artifacts/tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -o artifacts/core-inspection --disable-updatecheck
-          artifacts/tools/ilspycmd.exe -t GuidedArrow.Settings module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -o artifacts/settings-inspection --disable-updatecheck
+          artifacts/tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -o inspection/core --disable-updatecheck
+          artifacts/tools/ilspycmd.exe -t GuidedArrow.Settings module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -o inspection/settings --disable-updatecheck
 
       - name: Build progression sidecar and package stable core
         shell: pwsh
@@ -44,8 +44,8 @@ jobs:
             checksums/SHA256SUMS.txt
             artifacts/progression-build/GuidedArrow.Progression.dll
             artifacts/progression-build/GuidedArrow.Progression.pdb
-            artifacts/core-inspection/**
-            artifacts/settings-inspection/**
+            inspection/core/**
+            inspection/settings/**
           if-no-files-found: error
           retention-days: 30
 
