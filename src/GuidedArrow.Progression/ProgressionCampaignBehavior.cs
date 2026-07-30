@@ -50,7 +50,11 @@ namespace GuidedArrow.Progression
             if (_unlockMasks == null) _unlockMasks = new Dictionary<string, int>();
             if (_skillLevels == null) _skillLevels = new Dictionary<string, int>();
 
-            if (dataStore.IsLoading) MigrateV1Unlocks();
+            if (dataStore.IsLoading)
+            {
+                MigrateV1Unlocks();
+                EnsureStarterLevel();
+            }
             ProgressionService.Attach(this);
             if (dataStore.IsLoading) ProgressionService.ApplyCurrentSetting();
         }
@@ -90,9 +94,26 @@ namespace GuidedArrow.Progression
 
         internal void SetEnabled(bool enabled)
         {
-            if (_progressionEnabled == enabled) return;
+            bool changed = _progressionEnabled != enabled;
             _progressionEnabled = enabled;
-            NotifyChanged();
+            bool starterAdded = EnsureStarterLevel();
+            if (changed || starterAdded) NotifyChanged();
+        }
+
+        private bool EnsureStarterLevel()
+        {
+            if (!_progressionEnabled || Hero.MainHero == null) return false;
+            if (_skillLevels == null) _skillLevels = new Dictionary<string, int>();
+
+            string key = SkillKey(HeroKey, SkillId.GuidedRelease);
+            int current;
+            if (_skillLevels.TryGetValue(key, out current) && current > 0) return false;
+
+            // Rank 1 provides exactly one point. Guided Release is the mandatory centre node,
+            // so enabling progression must spend that starter point atomically instead of
+            // disabling Guided Arrow until an inaccessible screen is opened.
+            _skillLevels[key] = 1;
+            return true;
         }
 
         internal int GetSkillLevel(SkillId id)
