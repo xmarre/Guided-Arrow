@@ -143,8 +143,8 @@ namespace GuidedArrow.Progression
             IList heads = _candidateHeadsField?.GetValue(__instance) as IList;
             if (candidates == null || heads == null) return;
 
-            int attempts = 0;
-            while (__result >= 0 && __result < candidates.Count && attempts++ < 32)
+            int attemptsRemaining = candidates.Count;
+            while (__result >= 0 && __result < candidates.Count && attemptsRemaining-- > 0)
             {
                 Agent selected = candidates[__result] as Agent;
                 if (selected == null || IsVisibleFromShooter(__instance, selected)) return;
