@@ -24,28 +24,26 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Inspect stable core for targeted sidecar hooks
-        shell: pwsh
-        run: |
-          dotnet tool install --tool-path artifacts/tools ilspycmd --version 9.1.0.7988
-          artifacts/tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -o inspection/core --disable-updatecheck
-          artifacts/tools/ilspycmd.exe -t GuidedArrow.Settings module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll -o inspection/settings --disable-updatecheck
-
       - name: Build progression sidecar and package stable core
         shell: pwsh
         run: ./build.ps1
 
+      - name: Verify Bannerlord 1.4.7 API compatibility
+        shell: pwsh
+        run: |
+          $project = "src/GuidedArrow.Progression/GuidedArrow.Progression.csproj"
+          dotnet restore $project /p:BannerlordReferenceVersion=1.4.7.117484
+          dotnet build $project -c Release --no-restore -o artifacts/compatibility-1.4.7 /p:BannerlordReferenceVersion=1.4.7.117484 /p:ContinuousIntegrationBuild=true
+
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.3.3
+          name: GuidedArrow-v1.3.4
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
             artifacts/progression-build/GuidedArrow.Progression.dll
             artifacts/progression-build/GuidedArrow.Progression.pdb
-            inspection/core/**
-            inspection/settings/**
           if-no-files-found: error
           retention-days: 30
 
@@ -71,15 +69,16 @@ jobs:
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Final Autoguidance projectile teardown
+          ### Camera, progression and siege targeting
 
-          - Restores the stable core's deferred native-missile cleanup after a final `PassThrough` impact exhausts the guided penetration budget.
-          - Prevents the final cinematic or camera-return handoff from starting while the native removal queue still owns projectile teardown.
-          - Makes the existing clean-display-tick gate observe the real native-removal queue instead of an artificially empty queue.
-          - Marks a terminal shot generation complete only after the terminal handoff returns successfully.
-          - Preserves normal core-owned terminal transitions and cancels the sidecar fallback when the core has already advanced state.
-          - Preserves Autoguidance targeting, penetration counts, damage, formations, camera framing and progression balance.
-          - Retains the byte-identical verified v1.1.17 gameplay core and applies the correction through the maintained v1.3.3 sidecar.
+          - Adds independent switches for the guided-projectile camera and confirmed-kill cinematics.
+          - Keeps manual guidance and Autoguidance active while the player remains in the normal combat camera.
+          - Repairs first-time mastery activation by granting the mandatory Guided Release starter level.
+          - Makes character-screen mastery navigation tolerant of newer Bannerlord transition screens.
+          - Rejects enemies hidden behind fortification geometry before siege Autoguidance commits to them.
+          - Adds a Simple Controls MCM page and focused configuration guide.
+          - Verifies the sidecar against Bannerlord 1.3.15 and 1.4.7 reference assemblies.
+          - Retains the byte-identical verified v1.1.17 gameplay core.
 
           ### Installation
 
