@@ -176,6 +176,7 @@ namespace GuidedArrow.Progression
             foreach (string key in _skillLevels.Keys)
                 if (key != null && key.StartsWith(prefix, StringComparison.Ordinal)) remove.Add(key);
             foreach (string key in remove) _skillLevels.Remove(key);
+            EnsureStarterLevel();
             NotifyChanged();
         }
 
