@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.4
+
+- Adds independent MCM switches for the normal guided-projectile camera and confirmed-kill cinematics.
+- Keeps manual guidance and Autoguidance active when the projectile-follow camera is disabled.
+- Automatically invests the rank-1 starter point in Guided Release when mastery progression is enabled, including repair of existing enabled profiles that never received it.
+- Makes character-screen mastery navigation tolerate the intermediate screen transitions used by newer Bannerlord builds and reports an actionable fallback instead of silently cancelling.
+- Excludes enemies hidden behind siege geometry before Autoguidance commits to them, while preserving the existing reachability, route and target-ranking logic.
+- Limits siege visibility checks to siege missions and caches results to avoid unrestricted per-frame scene ray casts.
+- Adds a focused configuration guide and a separate Simple Controls MCM page for the most commonly requested presentation and siege options.
+- Verifies the maintained sidecar against both Bannerlord 1.3.15 and 1.4.7 reference assemblies.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the update through the maintained v1.3.4 sidecar.
+
 ## 1.3.3
 
 - Restores the stable core's deferred native-missile cleanup after a final `PassThrough` impact exhausts the guided penetration budget.
