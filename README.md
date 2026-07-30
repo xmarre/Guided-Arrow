@@ -4,7 +4,7 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 ## Current repository snapshot
 
-- Mod version: **1.3.3**
+- Mod version: **1.3.4**
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
@@ -15,7 +15,7 @@ The supplied v1.1.17 clean archive did not include the original core source. A r
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.3 restores the stable core's deferred native-missile cleanup after a final `PassThrough` impact exhausts the guided penetration budget. The sidecar keeps generation correlation for its terminal fallback while allowing the core to validate and remove the still-live native projectile on the following mission tick. Final cinematic or camera-return ownership remains blocked until the real native-removal queue and all other collision-owned work have drained. A terminal generation is committed only after the handoff returns successfully. The correction was validated against the previously failing 48-projectile Autoguidance stress case.
+v1.3.4 separates projectile-follow camera ownership from kill cinematics, repairs first-time mastery activation, makes character-screen navigation tolerant of newer Bannerlord transition screens, and adds siege-only line-of-sight validation before Autoguidance commits to a target. The stable core's existing reachability, trajectory planning, collision handling and projectile lifecycle remain unchanged.
 
 ## Repository layout
 
@@ -42,6 +42,8 @@ Required modules:
 
 Delete an older `Modules/GuidedArrow` folder before installing a new build.
 
+For practical presets and explanations of the main options, see [`CONFIGURATION.md`](CONFIGURATION.md).
+
 ## Mastery progression
 
 The optional mastery screen can be opened from:
@@ -55,7 +57,7 @@ Progression can be enabled in:
 
 `MCM > Guided Arrow - Mastery Progression > Progression > Enable Mastery Progression`
 
-It can also be toggled directly from the mastery screen. The separate progression MCM contains a **Mastery XP Multiplier** from 0.25 to 3.00.
+It can also be toggled directly from the mastery screen. Enabling progression automatically invests the rank-1 starter point in **Guided Release**, the mandatory centre node. The separate progression MCM contains a **Mastery XP Multiplier** from 0.25 to 3.00.
 
 ### Level-99 structure
 
