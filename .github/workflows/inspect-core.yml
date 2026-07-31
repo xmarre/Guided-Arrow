@@ -24,17 +24,19 @@ jobs:
         shell: pwsh
         run: dotnet tool install --global ilspycmd
 
-      - name: Decompile stable behavior
+      - name: Decompile stable collision types
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/core-decompile | Out-Null
-          ilspycmd -t GuidedArrow.GuidedArrowBehavior -o artifacts/core-decompile module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll
+          $dll = "module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll"
+          ilspycmd -t GuidedArrow.GuidedArrowBehavior -o artifacts/core-decompile $dll
+          ilspycmd -t GuidedArrow.MissileDamageBridge -o artifacts/core-decompile $dll
           Get-ChildItem artifacts/core-decompile -Recurse | ForEach-Object { Write-Host $_.FullName }
 
-      - name: Upload decompiled behavior
+      - name: Upload decompiled collision types
         uses: actions/upload-artifact@v4
         with:
-          name: guided-arrow-core-behavior
+          name: guided-arrow-core-collision-types
           path: artifacts/core-decompile/**
           if-no-files-found: error
           retention-days: 3
