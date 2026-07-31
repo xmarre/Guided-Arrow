@@ -8,6 +8,9 @@
 - Makes disabling Proximity Time Dilation leave mission time at the normal 1.0x speed while preserving Q/E manual time-speed controls.
 - Defers the disabled-kill-camera terminal handoff until the native impact callback has completed and a full display-frame boundary has passed.
 - Prevents camera-disabled hits from re-entering tracked-projectile teardown while Bannerlord is finalizing the impacted missile.
+- Prevents a newly queued penetration continuation from spawning later in the same outer `Mission.Tick` as its native collision.
+- Quarantines each continuation through two deferred-worker passes and until collision contexts, early reactions and native missile removals have drained.
+- Processes at most one age-eligible continuation per clean tick while preserving FIFO order for split-projectile collisions.
 - Automatically invests the rank-1 starter point in Guided Release when mastery progression is enabled, including repair of existing enabled profiles that never received it.
 - Makes character-screen mastery navigation tolerate the intermediate screen transitions used by newer Bannerlord builds and reports an actionable fallback instead of silently cancelling.
 - Excludes enemies hidden behind siege geometry before Autoguidance commits to them, while preserving the existing reachability, route and target-ranking logic.
