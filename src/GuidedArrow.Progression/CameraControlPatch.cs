@@ -26,7 +26,6 @@ namespace GuidedArrow.Progression
         private static FieldInfo _stateField;
         private static FieldInfo _cameraFrameValidField;
         private static MethodInfo _beginReturnMethod;
-        private static MethodInfo _releaseCameraMethod;
 
         internal static void Install(Harmony harmony, Type behaviorType)
         {
@@ -38,15 +37,11 @@ namespace GuidedArrow.Progression
                 behaviorType,
                 "BeginReturn",
                 new[] { typeof(string), typeof(bool) });
-            _releaseCameraMethod = AccessTools.Method(
-                behaviorType,
-                "ReleaseCustomCameraOwnership",
-                new[] { typeof(string) });
-
             PatchPrefix(harmony, behaviorType, "StartGuidedShot", nameof(StartShotPrefix));
             PatchPrefix(harmony, behaviorType, "AcquireCustomCameraOwnership", nameof(AcquireCameraPrefix));
             PatchPrefix(harmony, behaviorType, "SetMissionCamera", nameof(SetMissionCameraPrefix));
             PatchPrefix(harmony, behaviorType, "UpdateOverridenCamera", nameof(UpdateOverridenCameraPrefix));
+            PatchPrefix(harmony, behaviorType, "SuspendProjectileCameraForCollisionReaction", nameof(SuspendProjectileCameraPrefix));
             PatchPrefix(harmony, behaviorType, "InitializeCinematicCamera", nameof(InitializeCinematicCameraPrefix));
             PatchPrefix(harmony, behaviorType, "SetCinematicTimeSpeed", nameof(CinematicTimeSpeedPrefix));
             PatchPrefix(harmony, behaviorType, "EnsureCinematicTimeSpeed", nameof(CinematicTimeSpeedPrefix));
@@ -143,34 +138,42 @@ namespace GuidedArrow.Progression
                 }
 
                 ClearCameraFrame(__instance);
-                ReleaseCamera(__instance, "ProjectileFollowCameraDisabled");
                 return false;
             }
 
             return true;
         }
 
-        private static void UpdateOverridenCameraPrefix(object __instance)
+        private static bool UpdateOverridenCameraPrefix(object __instance, ref bool __result)
         {
             ShotState state;
-            if (!TryGetState(__instance, out state)) return;
+            if (!TryGetState(__instance, out state)) return true;
 
             int coreState = ReadCoreState(__instance);
             bool suppressProjectileCamera = !state.FollowProjectile &&
                                             (coreState == 1 || coreState == 2 || coreState == 3);
             bool suppressKillCamera = !state.EnableKillCinematic && coreState == 4;
-            if (!suppressProjectileCamera && !suppressKillCamera) return;
+            if (!suppressProjectileCamera && !suppressKillCamera) return true;
 
-            // Suppressed SetMissionCamera calls can leave the core's previous frame marked valid.
-            // Clear it before the original override method evaluates the frame, so Bannerlord keeps
-            // using its native combat camera rather than repeatedly submitting a stale frame.
-            if (!state.CameraWasShown || suppressProjectileCamera)
-            {
-                ClearCameraFrame(__instance);
-                ReleaseCamera(__instance, suppressKillCamera
-                    ? "KillCinematicDisabled"
-                    : "ProjectileFollowCameraDisabled");
-            }
+            // Do not call ReleaseCustomCameraOwnership or RestoreNativeCameraAfterGuidance here.
+            // Those methods write MissionScreen/Camera native state and can be reached from the
+            // missile-impact call stack. A disabled camera needs only to withhold the custom frame.
+            ClearCameraFrame(__instance);
+            __result = false;
+            return false;
+        }
+
+        private static bool SuspendProjectileCameraPrefix(object __instance)
+        {
+            ShotState state;
+            if (!TryGetState(__instance, out state) || state.FollowProjectile) return true;
+
+            // No projectile camera was requested for this shot. The core suspension method would
+            // redundantly restore MissionScreen.CombatCamera from inside OnMissileHit, immediately
+            // before collision-reaction and penetration-continuation bookkeeping. Skip that native
+            // camera mutation and keep the already-active combat camera untouched.
+            ClearCameraFrame(__instance);
+            return false;
         }
 
         private static bool InitializeCinematicCameraPrefix(object __instance)
@@ -218,10 +221,7 @@ namespace GuidedArrow.Progression
             {
                 state.SawSafeDisplayBoundary = true;
                 if (!state.CameraWasShown)
-                {
                     ClearCameraFrame(__instance);
-                    ReleaseCamera(__instance, "KillCinematicDisabledAwaitingSafeHandoff");
-                }
 
                 // Suppress one complete cinematic display tick. This provides a real frame boundary
                 // after the native collision callback without advancing cinematic camera, ragdoll or
@@ -275,13 +275,6 @@ namespace GuidedArrow.Progression
         {
             if (_cameraFrameValidField == null || instance == null) return;
             try { _cameraFrameValidField.SetValue(instance, false); }
-            catch { }
-        }
-
-        private static void ReleaseCamera(object instance, string reason)
-        {
-            if (_releaseCameraMethod == null || instance == null) return;
-            try { _releaseCameraMethod.Invoke(instance, new object[] { reason }); }
             catch { }
         }
     }
