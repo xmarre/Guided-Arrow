@@ -44,6 +44,7 @@ namespace GuidedArrow.Progression
             PatchPrefix(harmony, behaviorType, "StartGuidedShot", nameof(StartShotPrefix));
             PatchPrefix(harmony, behaviorType, "AcquireCustomCameraOwnership", nameof(AcquireCameraPrefix));
             PatchPrefix(harmony, behaviorType, "SetMissionCamera", nameof(SetMissionCameraPrefix));
+            PatchPrefix(harmony, behaviorType, "UpdateOverridenCamera", nameof(UpdateOverridenCameraPrefix));
             PatchPrefix(harmony, behaviorType, "BeginKillCinematic", nameof(BeginKillCinematicPrefix));
             PatchPrefix(harmony, behaviorType, "ResetAll", nameof(ResetPrefix));
         }
@@ -111,11 +112,29 @@ namespace GuidedArrow.Progression
                     return true;
                 }
 
+                ClearCameraFrame(__instance);
                 ReleaseCamera(__instance, "ProjectileFollowCameraDisabled");
                 return false;
             }
 
             return true;
+        }
+
+        private static void UpdateOverridenCameraPrefix(object __instance)
+        {
+            ShotState state;
+            if (!TryGetState(__instance, out state) || state.FollowProjectile) return;
+
+            int coreState = ReadCoreState(__instance);
+            if (coreState != 1 && coreState != 2 && coreState != 3) return;
+
+            // SetMissionCamera is suppressed while projectile following is disabled. The core sets
+            // _cameraFrameValid before that call, so leaving it true makes UpdateOverridenCamera
+            // repeatedly submit the last projectile frame and freezes the player's combat camera.
+            // Clear the validity marker before the original method evaluates it; the original then
+            // delegates to MissionView's native combat-camera path.
+            ClearCameraFrame(__instance);
+            ReleaseCamera(__instance, "ProjectileFollowCameraDisabled");
         }
 
         private static bool BeginKillCinematicPrefix(object __instance)
@@ -126,8 +145,7 @@ namespace GuidedArrow.Progression
 
             try
             {
-                if (!state.CameraWasShown && _cameraFrameValidField != null)
-                    _cameraFrameValidField.SetValue(__instance, false);
+                if (!state.CameraWasShown) ClearCameraFrame(__instance);
                 _beginReturnMethod.Invoke(__instance, new object[] { "KillCinematicDisabled", true });
                 return false;
             }
@@ -154,6 +172,13 @@ namespace GuidedArrow.Progression
             if (_stateField == null || instance == null) return -1;
             try { return Convert.ToInt32(_stateField.GetValue(instance)); }
             catch { return -1; }
+        }
+
+        private static void ClearCameraFrame(object instance)
+        {
+            if (_cameraFrameValidField == null || instance == null) return;
+            try { _cameraFrameValidField.SetValue(instance, false); }
+            catch { }
         }
 
         private static void ReleaseCamera(object instance, string reason)
