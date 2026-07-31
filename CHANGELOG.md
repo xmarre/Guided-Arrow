@@ -3,20 +3,17 @@
 ## 1.3.4
 
 - Adds independent MCM switches for the normal guided-projectile camera and confirmed-kill cinematics.
-- Keeps manual guidance and Autoguidance active when the projectile-follow camera is disabled.
-- Clears stale projectile-camera validity before the native camera override runs, preventing the normal combat view from freezing during Autoguidance.
-- Avoids redundant native combat-camera writes from inside the missile-impact callback when projectile following is disabled.
-- Makes disabling Proximity Time Dilation leave mission time at the normal 1.0x speed while preserving Q/E manual time-speed controls.
-- Defers the disabled-kill-camera terminal handoff until the native impact callback has completed and a full display-frame boundary has passed.
-- Prevents camera-disabled hits from re-entering tracked-projectile teardown while Bannerlord is finalizing the impacted missile.
-- Gates terminal Stick penetration continuations on three completed display ticks, at least 75 ms of real time, and fully drained collision/removal queues.
-- Processes at most one eligible continuation per clean tick while preserving FIFO order for split-projectile collisions.
-- Keeps save deserialization limited to raw progression data synchronization and migration; starter-node repair now runs only after the campaign is ready.
-- Automatically invests the rank-1 starter point in Guided Release when mastery progression is enabled, including repair of existing enabled profiles that never received it.
-- Makes character-screen mastery navigation tolerate the intermediate screen transitions used by newer Bannerlord builds and reports an actionable fallback instead of silently cancelling.
-- Excludes enemies hidden behind siege geometry before Autoguidance commits to them, while preserving the existing reachability, route and target-ranking logic.
-- Limits siege visibility checks to siege missions and caches results to avoid unrestricted per-frame scene ray casts.
-- Adds a focused configuration guide and a separate Simple Controls MCM page for the most commonly requested presentation and siege options.
+- Keeps manual guidance and Autoguidance active while the player remains in Bannerlord's normal combat camera.
+- Clears stale projectile-camera ownership and frame state so the combat camera remains responsive throughout Autoguidance.
+- Keeps mission time at 1.0x when Proximity Time Dilation is disabled while preserving Q/E manual time-speed controls.
+- Defers disabled-kill-camera terminal handling until the native impact callback and a complete display-frame boundary have finished.
+- Restores the proven penetration invariant: only a native `PassThrough` continues the exact live projectile; `Stick`, `BecomeInvisible` and other terminal reactions end it without spawning a synthetic replacement missile.
+- Keeps save deserialization limited to raw progression synchronization and migration, with starter-node repair deferred until the campaign is ready.
+- Automatically invests and preserves the mandatory rank-one Guided Release starter level when mastery progression is enabled.
+- Makes character-screen mastery navigation tolerate intermediate Bannerlord screen transitions and reports the Ctrl+U campaign-map fallback when navigation cannot complete.
+- Filters hidden siege targets while the core initially builds its parallel candidate and head-position lists, preserving every route-planning index for the full shot.
+- Limits siege visibility checks to siege missions, caches ray-cast results and fails open when an unknown private API shape is encountered.
+- Adds a focused configuration guide and a separate Simple Controls MCM page for camera presentation and siege targeting.
 - Verifies the maintained sidecar against both Bannerlord 1.3.15 and 1.4.7 reference assemblies.
 - Retains the byte-identical verified v1.1.17 gameplay core and applies the update through the maintained v1.3.4 sidecar.
 
