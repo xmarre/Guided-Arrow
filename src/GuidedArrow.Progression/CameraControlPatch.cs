@@ -16,6 +16,8 @@ namespace GuidedArrow.Progression
             internal bool FollowProjectile;
             internal bool EnableKillCinematic;
             internal bool CameraWasShown;
+            internal bool SkipKillCinematicRequested;
+            internal bool SawSafeDisplayBoundary;
         }
 
         private static readonly ConditionalWeakTable<object, ShotState> States =
@@ -45,7 +47,11 @@ namespace GuidedArrow.Progression
             PatchPrefix(harmony, behaviorType, "AcquireCustomCameraOwnership", nameof(AcquireCameraPrefix));
             PatchPrefix(harmony, behaviorType, "SetMissionCamera", nameof(SetMissionCameraPrefix));
             PatchPrefix(harmony, behaviorType, "UpdateOverridenCamera", nameof(UpdateOverridenCameraPrefix));
-            PatchPrefix(harmony, behaviorType, "BeginKillCinematic", nameof(BeginKillCinematicPrefix));
+            PatchPrefix(harmony, behaviorType, "InitializeCinematicCamera", nameof(InitializeCinematicCameraPrefix));
+            PatchPrefix(harmony, behaviorType, "SetCinematicTimeSpeed", nameof(CinematicTimeSpeedPrefix));
+            PatchPrefix(harmony, behaviorType, "EnsureCinematicTimeSpeed", nameof(CinematicTimeSpeedPrefix));
+            PatchPostfix(harmony, behaviorType, "BeginKillCinematic", nameof(BeginKillCinematicPostfix));
+            PatchPrefix(harmony, behaviorType, "OnPreDisplayMissionTick", nameof(PreDisplayTickPrefix));
             PatchPrefix(harmony, behaviorType, "ResetAll", nameof(ResetPrefix));
         }
 
@@ -65,6 +71,22 @@ namespace GuidedArrow.Progression
             }
         }
 
+        private static void PatchPostfix(Harmony harmony, Type behaviorType, string methodName, string postfixName)
+        {
+            MethodInfo postfix = AccessTools.Method(typeof(CameraControlPatch), postfixName);
+            if (postfix == null) return;
+
+            foreach (MethodInfo method in behaviorType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (method.Name != methodName || method.IsAbstract) continue;
+                try
+                {
+                    harmony.Patch(method, postfix: new HarmonyMethod(postfix) { priority = Priority.Last });
+                }
+                catch { }
+            }
+        }
+
         private static void StartShotPrefix(object __instance)
         {
             if (__instance == null) return;
@@ -75,7 +97,9 @@ namespace GuidedArrow.Progression
             {
                 FollowProjectile = settings == null || settings.FollowProjectileCamera,
                 EnableKillCinematic = settings == null || settings.EnableKillCinematics,
-                CameraWasShown = false
+                CameraWasShown = false,
+                SkipKillCinematicRequested = false,
+                SawSafeDisplayBoundary = false
             });
         }
 
@@ -85,7 +109,8 @@ namespace GuidedArrow.Progression
             if (!TryGetState(__instance, out state) || state.FollowProjectile) return true;
 
             int coreState = ReadCoreState(__instance);
-            return coreState == 4 || (coreState == 5 && state.CameraWasShown);
+            return (coreState == 4 && state.EnableKillCinematic) ||
+                   (coreState == 5 && state.CameraWasShown);
         }
 
         private static bool SetMissionCameraPrefix(object __instance)
@@ -96,7 +121,12 @@ namespace GuidedArrow.Progression
             int coreState = ReadCoreState(__instance);
             if (coreState == 4)
             {
-                if (!state.EnableKillCinematic) return false;
+                if (!state.EnableKillCinematic)
+                {
+                    if (!state.CameraWasShown) ClearCameraFrame(__instance);
+                    return false;
+                }
+
                 state.CameraWasShown = true;
                 return true;
             }
@@ -123,36 +153,103 @@ namespace GuidedArrow.Progression
         private static void UpdateOverridenCameraPrefix(object __instance)
         {
             ShotState state;
-            if (!TryGetState(__instance, out state) || state.FollowProjectile) return;
+            if (!TryGetState(__instance, out state)) return;
 
             int coreState = ReadCoreState(__instance);
-            if (coreState != 1 && coreState != 2 && coreState != 3) return;
+            bool suppressProjectileCamera = !state.FollowProjectile &&
+                                            (coreState == 1 || coreState == 2 || coreState == 3);
+            bool suppressKillCamera = !state.EnableKillCinematic && coreState == 4;
+            if (!suppressProjectileCamera && !suppressKillCamera) return;
 
-            // SetMissionCamera is suppressed while projectile following is disabled. The core sets
-            // _cameraFrameValid before that call, so leaving it true makes UpdateOverridenCamera
-            // repeatedly submit the last projectile frame and freezes the player's combat camera.
-            // Clear the validity marker before the original method evaluates it; the original then
-            // delegates to MissionView's native combat-camera path.
-            ClearCameraFrame(__instance);
-            ReleaseCamera(__instance, "ProjectileFollowCameraDisabled");
+            // Suppressed SetMissionCamera calls can leave the core's previous frame marked valid.
+            // Clear it before the original override method evaluates the frame, so Bannerlord keeps
+            // using its native combat camera rather than repeatedly submitting a stale frame.
+            if (!state.CameraWasShown || suppressProjectileCamera)
+            {
+                ClearCameraFrame(__instance);
+                ReleaseCamera(__instance, suppressKillCamera
+                    ? "KillCinematicDisabled"
+                    : "ProjectileFollowCameraDisabled");
+            }
         }
 
-        private static bool BeginKillCinematicPrefix(object __instance)
+        private static bool InitializeCinematicCameraPrefix(object __instance)
         {
             ShotState state;
-            if (!TryGetState(__instance, out state) || state.EnableKillCinematic) return true;
-            if (_beginReturnMethod == null) return true;
+            return !TryGetState(__instance, out state) || state.EnableKillCinematic;
+        }
+
+        private static bool CinematicTimeSpeedPrefix(object __instance)
+        {
+            ShotState state;
+            return !TryGetState(__instance, out state) || state.EnableKillCinematic;
+        }
+
+        private static void BeginKillCinematicPostfix(object __instance)
+        {
+            ShotState state;
+            if (!TryGetState(__instance, out state) || state.EnableKillCinematic) return;
+            if (ReadCoreState(__instance) != 4) return;
+
+            // Do not call BeginReturn here. BeginKillCinematic can run inside Bannerlord's native
+            // missile-hit callback. Re-entering the core's tracked-missile cleanup from that callback
+            // races the projectile currently being finalized and can surface as protected-memory
+            // corruption. Let the core finish its normal confirmed-kill bookkeeping, then perform the
+            // camera-free terminal transition only after a complete display-tick boundary.
+            state.SkipKillCinematicRequested = true;
+            state.SawSafeDisplayBoundary = false;
+            if (!state.CameraWasShown) ClearCameraFrame(__instance);
+        }
+
+        private static bool PreDisplayTickPrefix(object __instance)
+        {
+            ShotState state;
+            if (!TryGetState(__instance, out state) || !state.SkipKillCinematicRequested)
+                return true;
+
+            if (ReadCoreState(__instance) != 4)
+            {
+                state.SkipKillCinematicRequested = false;
+                state.SawSafeDisplayBoundary = false;
+                return true;
+            }
+
+            if (!state.SawSafeDisplayBoundary)
+            {
+                state.SawSafeDisplayBoundary = true;
+                if (!state.CameraWasShown)
+                {
+                    ClearCameraFrame(__instance);
+                    ReleaseCamera(__instance, "KillCinematicDisabledAwaitingSafeHandoff");
+                }
+
+                // Suppress one complete cinematic display tick. This provides a real frame boundary
+                // after the native collision callback without advancing cinematic camera, ragdoll or
+                // time-control state that the user explicitly disabled.
+                return false;
+            }
+
+            if (_beginReturnMethod == null)
+            {
+                state.SkipKillCinematicRequested = false;
+                state.SawSafeDisplayBoundary = false;
+                return true;
+            }
 
             try
             {
                 if (!state.CameraWasShown) ClearCameraFrame(__instance);
-                _beginReturnMethod.Invoke(__instance, new object[] { "KillCinematicDisabled", true });
-                return false;
+                _beginReturnMethod.Invoke(__instance, new object[] { "KillCinematicDisabled/SafeDisplayHandoff", true });
+                state.SkipKillCinematicRequested = false;
+                state.SawSafeDisplayBoundary = false;
+                return true;
             }
             catch
             {
-                // Preserve the core transition if the reflected contract is unavailable.
-                return true;
+                // Keep the request pending and wait for another complete display boundary instead of
+                // falling back to the unsafe collision-time transition.
+                state.SawSafeDisplayBoundary = false;
+                return false;
             }
         }
 
