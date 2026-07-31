@@ -21,6 +21,7 @@ namespace GuidedArrow.Progression
             {
                 ProgressionRuntimeSettingsPatch.Install(harmony, behaviorType, settingsType);
                 GuidanceTimeControlPatch.Install(harmony, behaviorType, settingsType);
+                SplitLaunchOrderingPatch.Install(harmony, behaviorType, settingsType);
             }
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
