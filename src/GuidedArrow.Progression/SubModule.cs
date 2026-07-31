@@ -115,14 +115,14 @@ namespace GuidedArrow.Progression
 
             if (Campaign.Current == null || Mission.Current != null || Game.Current == null)
             {
-                CancelPendingCharacterScreenOpen();
+                CancelPendingCharacterScreenOpen("Guided Arrow Mastery can only open from an active campaign screen.");
                 return false;
             }
 
             _pendingCharacterScreenOpenTimeoutFrames--;
             if (_pendingCharacterScreenOpenTimeoutFrames <= 0)
             {
-                CancelPendingCharacterScreenOpen();
+                CancelPendingCharacterScreenOpen("Guided Arrow could not leave the character screen. Return to the campaign map and press Ctrl+U.");
                 return false;
             }
 
@@ -138,8 +138,11 @@ namespace GuidedArrow.Progression
                 case CharacterScreenOpenPhase.CloseCharacterState:
                     if (!CharacterScreenButtonController.IsCharacterDeveloperScreen(top))
                     {
-                        CancelPendingCharacterScreenOpen();
-                        return false;
+                        // Newer Bannerlord builds can remove the screen before the game-state
+                        // transition is observable. Continue waiting for the campaign map instead
+                        // of treating the normal transition as a failed click.
+                        _characterScreenOpenPhase = CharacterScreenOpenPhase.WaitForCampaignMap;
+                        return true;
                     }
 
                     try
@@ -150,9 +153,9 @@ namespace GuidedArrow.Progression
                         _characterScreenOpenPhase = CharacterScreenOpenPhase.WaitForCampaignMap;
                         _pendingCharacterScreenOpenFrames = 1;
                     }
-                    catch
+                    catch (Exception exception)
                     {
-                        CancelPendingCharacterScreenOpen();
+                        CancelPendingCharacterScreenOpen("Guided Arrow could not close the character screen: " + exception.GetType().Name + ". Return to the campaign map and press Ctrl+U.");
                         return false;
                     }
                     return true;
@@ -165,8 +168,10 @@ namespace GuidedArrow.Progression
 
                     if (!IsCampaignMapScreen(top))
                     {
-                        CancelPendingCharacterScreenOpen();
-                        return false;
+                        // Bannerlord 1.4.x may expose an intermediate transition screen for several
+                        // frames. Keep the request alive until the real map screen appears or the
+                        // bounded timeout reports an actionable error.
+                        return true;
                     }
 
                     // Give the native map bar and panel-switching layer time to finish
@@ -178,30 +183,39 @@ namespace GuidedArrow.Progression
                 case CharacterScreenOpenPhase.SettleCampaignMap:
                     if (!IsCampaignMapScreen(top))
                     {
-                        CancelPendingCharacterScreenOpen();
-                        return false;
+                        _characterScreenOpenPhase = CharacterScreenOpenPhase.WaitForCampaignMap;
+                        return true;
                     }
 
                     _pendingCharacterScreenOpen = false;
                     _pendingCharacterScreenOpenFrames = 0;
                     _pendingCharacterScreenOpenTimeoutFrames = 0;
                     _characterScreenOpenPhase = CharacterScreenOpenPhase.None;
-                    ScreenManager.PushScreen(new GuidedArrowMasteryScreen());
+                    try
+                    {
+                        ScreenManager.PushScreen(new GuidedArrowMasteryScreen());
+                    }
+                    catch (Exception exception)
+                    {
+                        CancelPendingCharacterScreenOpen("Guided Arrow Mastery failed to open: " + exception.GetType().Name + ". Guided Arrow remains enabled. Return to the campaign map and press Ctrl+U.");
+                    }
                     return true;
 
                 default:
-                    CancelPendingCharacterScreenOpen();
+                    CancelPendingCharacterScreenOpen("Guided Arrow Mastery opening was cancelled because its screen transition lost state.");
                     return false;
             }
         }
 
-        private void CancelPendingCharacterScreenOpen()
+        private void CancelPendingCharacterScreenOpen(string message = null)
         {
             _pendingCharacterScreenOpen = false;
             _pendingCharacterScreenOpenFrames = 0;
             _pendingCharacterScreenOpenTimeoutFrames = 0;
             _characterScreenOpenPhase = CharacterScreenOpenPhase.None;
             _characterButton.Resume();
+            if (!string.IsNullOrEmpty(message))
+                InformationManager.DisplayMessage(new InformationMessage(message));
         }
 
         internal static void OpenScreen()
@@ -214,15 +228,26 @@ namespace GuidedArrow.Progression
             if (Campaign.Current == null || Mission.Current != null) return;
             if (ScreenManager.TopScreen is GuidedArrowMasteryScreen) return;
             if (!IsCampaignMapScreen(ScreenManager.TopScreen)) return;
-            ScreenManager.PushScreen(new GuidedArrowMasteryScreen());
+            try
+            {
+                ScreenManager.PushScreen(new GuidedArrowMasteryScreen());
+            }
+            catch (Exception exception)
+            {
+                InformationManager.DisplayMessage(new InformationMessage(
+                    "Guided Arrow Mastery failed to open: " + exception.GetType().Name + ". Return to the campaign map and try again."));
+            }
         }
 
         private static bool IsCampaignMapScreen(ScreenBase screen)
         {
             if (screen == null) return false;
-            string name = screen.GetType().Name;
+            Type type = screen.GetType();
+            string name = type.Name ?? string.Empty;
+            string fullName = type.FullName ?? name;
             return name.Equals("MapScreen", StringComparison.OrdinalIgnoreCase) ||
-                   name.IndexOf("CampaignMapScreen", StringComparison.OrdinalIgnoreCase) >= 0;
+                   name.IndexOf("CampaignMapScreen", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   fullName.IndexOf("CampaignMap", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 

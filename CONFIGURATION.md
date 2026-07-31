@@ -1,0 +1,74 @@
+# Guided Arrow Configuration Guide
+
+Guided Arrow exposes many controls because projectile steering, autonomous target selection, split-arrow behaviour, camera presentation and mastery progression can be configured independently. Most players only need the settings below.
+
+## Quick camera setups
+
+### Autoguidance while keeping the normal player camera
+
+In **Guided Arrow - Simple Controls**:
+
+- Disable **Follow the Guided Projectile**.
+- Disable **Play Kill Cinematics**.
+
+Guidance and Autoguidance continue to steer the projectile. These switches affect presentation only.
+
+### Projectile camera without a kill cinematic
+
+- Enable **Follow the Guided Projectile**.
+- Disable **Play Kill Cinematics**.
+
+### Kill cinematic without following the projectile
+
+- Disable **Follow the Guided Projectile**.
+- Enable **Play Kill Cinematics**.
+
+The player view remains active during flight and changes only for a confirmed kill cinematic.
+
+## Minimum Autoguidance setup
+
+In the normal **Guided Arrow** MCM page:
+
+- Enable **Guided Arrow**.
+- Enable **Autonomous Guidance**.
+- Enable **Always-On Autoguidance**, or use the configured Autoguidance hotkey.
+- Set **Autoguidance Scope** to `0` for the main projectile, `1` for split projectiles, or `2` for both.
+- Keep **Automatic Reacquisition** enabled for multi-target flights.
+- Keep **Obstacle Avoidance** enabled in settlements and sieges.
+
+## Target selection
+
+- `0 — Closest Reachable Enemy`: prioritizes a nearby target the projectile can still intercept. This is the recommended default.
+- `1 — Closest to Camera Aim`: biases selection toward the current camera aim direction.
+- `2 — Absolute Closest Enemy`: prioritizes distance while retaining the core reachability preference.
+
+For sieges, keep **Visible Siege Targets Only** enabled under **Guided Arrow - Simple Controls**. It excludes enemies hidden behind walls, towers, closed gates and other fortification geometry before Autoguidance commits to them.
+
+## Steering and route settings
+
+- **Minimum Turn Radius**: lower values permit tighter turns; higher values produce wider, smoother arcs.
+- **Speed-Adaptive Steering Strength**: controls how strongly steering authority scales with projectile speed.
+- **Flight Profile**: changes the route shape. **Direct Hunter** is the least decorative; **Adaptive Mix** selects a profile per projectile.
+- **Planned Target Count**: maximum number of targets considered for a multi-target route.
+- **Obstacle Scan Interval**: lower values scan more frequently and cost more CPU time.
+- **Obstacle Clearance**: distance the route attempts to keep from detected geometry.
+
+## Split projectiles
+
+- **Standalone Split Projectiles** creates Guided Arrow followers for ordinary shots.
+- **Split Projectile Count** controls the generated group size.
+- **Autoguidance Scope** determines whether the main projectile, generated followers or both receive autonomous targeting.
+- **Split Target Distribution** controls whether followers share a target or distribute across enemies.
+- **Formation Mode**, **Formation Response** and **Catch-Up Speed Limit** affect group shape and how aggressively followers recover their position.
+
+Native or The Old Realms ability volleys remain native. Guided Arrow followers are added to those volleys when split augmentation is enabled.
+
+## Mastery progression
+
+Enable progression at:
+
+`MCM > Guided Arrow - Mastery Progression > Progression > Enable Mastery Progression`
+
+Enabling progression automatically invests the rank-1 starter point in **Guided Release**, the mandatory centre node. Open the tree from the bottom-right **Guided Arrow Mastery** button on the character-development screen or press **Ctrl+U** from the campaign map.
+
+The normal Guided Arrow settings remain the upper limits. Mastery ranks temporarily constrain those values only while a guided shot is active.

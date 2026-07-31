@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.4
+
+- Adds independent MCM switches for the normal guided-projectile camera and confirmed-kill cinematics.
+- Keeps manual guidance and Autoguidance active while the player remains in Bannerlord's normal combat camera.
+- Clears stale projectile-camera ownership and frame state so the combat camera remains responsive throughout Autoguidance.
+- Keeps mission time at 1.0x when Proximity Time Dilation is disabled while preserving Q/E manual time-speed controls.
+- Defers disabled-kill-camera terminal handling until the native impact callback and a complete display-frame boundary have finished.
+- Restores the proven penetration invariant: only a native `PassThrough` continues the exact live projectile; `Stick`, `BecomeInvisible` and other terminal reactions end it without spawning a synthetic replacement missile.
+- Keeps save deserialization limited to raw progression synchronization and migration, with starter-node repair deferred until the campaign is ready.
+- Automatically invests and preserves the mandatory rank-one Guided Release starter level when mastery progression is enabled.
+- Makes character-screen mastery navigation tolerate intermediate Bannerlord screen transitions and reports the Ctrl+U campaign-map fallback when navigation cannot complete.
+- Filters hidden siege targets while the core initially builds its parallel candidate and head-position lists, preserving every route-planning index for the full shot.
+- Limits siege visibility checks to siege missions, caches ray-cast results and fails open when an unknown private API shape is encountered.
+- Adds a focused configuration guide and a separate Simple Controls MCM page for camera presentation and siege targeting.
+- Verifies the maintained sidecar against both Bannerlord 1.3.15 and 1.4.7 reference assemblies.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the update through the maintained v1.3.4 sidecar.
+
 ## 1.3.3
 
 - Restores the stable core's deferred native-missile cleanup after a final `PassThrough` impact exhausts the guided penetration budget.
