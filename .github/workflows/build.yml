@@ -49,6 +49,24 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Refresh tracked v1.3.4 artifacts once
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/reported-camera-progression-siege'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${{ github.head_ref }}"
+          git add -- \
+            module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.dll \
+            module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.pdb \
+            dist/GuidedArrow-v1.3.4-Bannerlord-1.3.15-to-1.4.7-Universal.zip \
+            dist/GuidedArrow-v1.3.4-SOURCE.zip \
+            checksums/SHA256SUMS.txt
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "Refresh v1.3.4 release artifacts [skip ci]"
+            git push origin "HEAD:${{ github.head_ref }}"
+          }
+
       - name: Resolve release version
         id: release_meta
         if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')
@@ -75,14 +93,13 @@ jobs:
 
           - Adds independent switches for the guided-projectile camera and confirmed-kill cinematics.
           - Keeps manual guidance and Autoguidance active while the player remains in the normal combat camera.
-          - Prevents the native combat view from freezing when projectile following is disabled.
+          - Prevents stale projectile-camera state from freezing the native combat view.
           - Keeps mission time at 1.0x when Proximity Time Dilation is disabled while preserving Q/E manual control.
-          - Defers disabled-kill-camera terminal handling until the native impact callback and a full display-frame boundary have completed.
-          - Prevents synthetic penetration continuations from spawning in the native collision tick that queued them.
-          - Waits for collision reactions and native missile removals to drain, then spawns at most one eligible continuation per clean tick.
-          - Repairs first-time mastery activation by granting the mandatory Guided Release starter level.
+          - Defers disabled-kill-camera terminal handling until the native impact callback and a complete display-frame boundary have finished.
+          - Continues penetration only when Bannerlord reports native PassThrough; terminal Stick and BecomeInvisible reactions end without creating a synthetic replacement missile.
+          - Keeps save deserialization free of hero and MCM-dependent starter repair, then restores the mandatory Guided Release level after the campaign is ready.
           - Makes character-screen mastery navigation tolerant of newer Bannerlord transition screens.
-          - Rejects enemies hidden behind fortification geometry before siege Autoguidance commits to them.
+          - Filters hidden siege targets before the core builds route indices, preserving candidate/head-list index stability across repeated Autoguided shots.
           - Adds a Simple Controls MCM page and focused configuration guide.
           - Verifies the sidecar against Bannerlord 1.3.15 and 1.4.7 reference assemblies.
           - Retains the byte-identical verified v1.1.17 gameplay core.
