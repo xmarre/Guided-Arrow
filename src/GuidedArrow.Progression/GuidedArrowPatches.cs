@@ -30,8 +30,8 @@ namespace GuidedArrow.Progression
             CameraControlPatch.Install(harmony, behaviorType);
 
             DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
+            TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
-            DeferredContinuationFrameGatePatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
