@@ -16,6 +16,7 @@ namespace GuidedArrow.Progression
         private Dictionary<string, int> _unlockMasks = new Dictionary<string, int>();
         private bool _progressionEnabled;
         private int _dataVersion;
+        private bool _campaignReady;
 
         private readonly Dictionary<int, ShotXpState> _shotXp = new Dictionary<int, ShotXpState>();
 
@@ -50,18 +51,18 @@ namespace GuidedArrow.Progression
             if (_unlockMasks == null) _unlockMasks = new Dictionary<string, int>();
             if (_skillLevels == null) _skillLevels = new Dictionary<string, int>();
 
-            if (dataStore.IsLoading)
-            {
-                MigrateV1Unlocks();
-                EnsureStarterLevel();
-            }
+            if (dataStore.IsLoading) MigrateV1Unlocks();
+
+            // Save deserialization is not a campaign-ready callback. Hero.MainHero and MCM
+            // settings can still depend on campaign objects whose fixups have not completed.
+            // Keep this path limited to raw data synchronization and version migration.
             ProgressionService.Attach(this);
-            if (dataStore.IsLoading) ProgressionService.ApplyCurrentSetting();
         }
 
         private void AttachAndApplySettings()
         {
             ProgressionService.Attach(this);
+            _campaignReady = Campaign.Current != null;
             ProgressionService.ApplyCurrentSetting();
         }
 
@@ -96,13 +97,13 @@ namespace GuidedArrow.Progression
         {
             bool changed = _progressionEnabled != enabled;
             _progressionEnabled = enabled;
-            bool starterAdded = EnsureStarterLevel();
+            bool starterAdded = _campaignReady && EnsureStarterLevel();
             if (changed || starterAdded) NotifyChanged();
         }
 
         private bool EnsureStarterLevel()
         {
-            if (!_progressionEnabled || Hero.MainHero == null) return false;
+            if (!_campaignReady || !_progressionEnabled || Hero.MainHero == null) return false;
             if (_skillLevels == null) _skillLevels = new Dictionary<string, int>();
 
             string key = SkillKey(HeroKey, SkillId.GuidedRelease);
