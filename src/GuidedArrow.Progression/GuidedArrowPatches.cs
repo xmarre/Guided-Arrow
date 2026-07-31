@@ -18,7 +18,10 @@ namespace GuidedArrow.Progression
             if (behaviorType == null) return;
 
             if (settingsType != null)
+            {
                 ProgressionRuntimeSettingsPatch.Install(harmony, behaviorType, settingsType);
+                GuidanceTimeControlPatch.Install(harmony, behaviorType, settingsType);
+            }
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
