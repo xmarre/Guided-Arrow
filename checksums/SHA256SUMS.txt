@@ -1,5 +1,5 @@
-8860d7ab1a31a322874bec077fd8589ed03d000b1f792646642f8511820b621a  GuidedArrow-v1.3.4-Bannerlord-1.3.15-to-1.4.7-Universal.zip
-393e4c7851548ca2915b81caf42a3542f84f7458f6fce58e2ea036870cdc5b06  GuidedArrow-v1.3.4-SOURCE.zip
+70b00f7d8f16f2d66a1592bd9567bd2d60a4a71174d016f124b6a5744252e049  GuidedArrow-v1.3.4-Bannerlord-1.3.15-to-1.4.7-Universal.zip
+12946c01be88f6f00b60fbfaf244801d1a616a9b5b575e1fe5aece2fef1bc1f2  GuidedArrow-v1.3.4-SOURCE.zip
 0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0  GuidedArrow.dll
-1868f1523562c92bece976c23e3ba54ecbd93fd112decb12538ab2064ccbc883  GuidedArrow.Progression.dll
-b361b009a348332f7d2bb5a81cb028b0e14b356218c868274a54b9f336bf7d22  GuidedArrow.Progression.pdb
+d3c4d72804ea88de9d316b3a46f1d0fa618f0a2ab22b1b9217ef51e406a9d060  GuidedArrow.Progression.dll
+9d99fcd1aa37bdc23439149b05c7e3e483a9eeccd4a375104f45c9ae4a8ed2e4  GuidedArrow.Progression.pdb
