@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -9,37 +10,38 @@ using HarmonyLib;
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Establishes a real native-frame boundary before the stable core calls Mission.AddCustomMissile
-    /// for a penetration continuation. Queueing alone is insufficient because a native collision can
-    /// append work before GuidedArrowBehavior.OnMissionTick drains that queue in the same outer
-    /// Mission.Tick. Calling AddCustomMissile in that window can corrupt Bannerlord's native missile
-    /// container even when the resulting AccessViolationException is caught by managed code.
+    /// Keeps terminal Stick continuations out of Bannerlord's collision-finalization window.
+    /// ProcessDeferredNativeMissileWork can run more than once before a rendered frame completes,
+    /// so mission-worker pass counts do not establish a native frame boundary. Eligibility is tied
+    /// to completed OnPreDisplayMissionTick calls and a minimum real-time quarantine instead.
     /// </summary>
     internal static class DeferredContinuationFrameGatePatch
     {
-        private sealed class PassState
+        private const int RequiredDisplayBoundaries = 3;
+        private const double MinimumQuarantineSeconds = 0.075;
+
+        private sealed class DisplayState
         {
-            internal long CompletedPasses;
+            internal long CompletedDisplayTicks;
         }
 
         private sealed class Eligibility
         {
-            internal long FirstEligiblePass;
+            internal long FirstEligibleDisplayTick;
+            internal long NotBeforeTimestamp;
         }
 
         private sealed class WorkerState
         {
             internal IList Queue;
-            internal PassState Pass;
             internal object Head;
             internal readonly List<object> OriginalItems = new List<object>();
             internal readonly List<object> DeferredItems = new List<object>();
             internal bool QueueMutated;
-            internal bool PassCompleted;
         }
 
-        private static readonly ConditionalWeakTable<object, PassState> PassStates =
-            new ConditionalWeakTable<object, PassState>();
+        private static readonly ConditionalWeakTable<object, DisplayState> DisplayStates =
+            new ConditionalWeakTable<object, DisplayState>();
         private static readonly ConditionalWeakTable<object, Eligibility> Eligibilities =
             new ConditionalWeakTable<object, Eligibility>();
 
@@ -105,6 +107,9 @@ namespace GuidedArrow.Progression
             MethodInfo workerFinalizer = AccessTools.Method(
                 typeof(DeferredContinuationFrameGatePatch),
                 nameof(WorkerFinalizer));
+            MethodInfo displayPostfix = AccessTools.Method(
+                typeof(DeferredContinuationFrameGatePatch),
+                nameof(DisplayTickPostfix));
             MethodInfo clearPrefix = AccessTools.Method(
                 typeof(DeferredContinuationFrameGatePatch),
                 nameof(ClearPrefix));
@@ -113,6 +118,7 @@ namespace GuidedArrow.Progression
                 queuePostfix == null ||
                 workerPrefix == null ||
                 workerFinalizer == null ||
+                displayPostfix == null ||
                 clearPrefix == null)
                 return;
 
@@ -123,13 +129,25 @@ namespace GuidedArrow.Progression
                     prefix: new HarmonyMethod(queuePrefix) { priority = Priority.First },
                     postfix: new HarmonyMethod(queuePostfix) { priority = Priority.Last });
 
-                // This prefix must run before PenetrationContinuationSafetyPatch's existing
-                // one-item serializer. It leaves that patch either zero or one eligible item.
-                // The finalizer runs after normal postfix handling and restores quarantined work.
+                // Run before the existing one-item serializer. The original worker sees at most one
+                // continuation whose native-frame and collision-owned-work gates have both cleared.
                 harmony.Patch(
                     workerMethod,
                     prefix: new HarmonyMethod(workerPrefix) { priority = int.MaxValue },
                     finalizer: new HarmonyMethod(workerFinalizer) { priority = Priority.Last });
+
+                foreach (MethodInfo method in behaviorType
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .Where(candidate => candidate.Name == "OnPreDisplayMissionTick" && !candidate.IsAbstract))
+                {
+                    try
+                    {
+                        harmony.Patch(
+                            method,
+                            postfix: new HarmonyMethod(displayPostfix) { priority = Priority.Last });
+                    }
+                    catch { }
+                }
 
                 foreach (string methodName in new[] { "StartGuidedShot", "ResetAll" })
                 {
@@ -175,8 +193,9 @@ namespace GuidedArrow.Progression
                 IList queue = _pendingContinuationSpawnsField.GetValue(__instance) as IList;
                 if (queue == null || queue.Count <= __state) return;
 
-                PassState pass = PassStates.GetOrCreateValue(__instance);
-                long firstEligiblePass = pass.CompletedPasses + 2L;
+                DisplayState display = DisplayStates.GetOrCreateValue(__instance);
+                long firstEligibleDisplayTick = display.CompletedDisplayTicks + RequiredDisplayBoundaries;
+                long notBeforeTimestamp = AddSeconds(Stopwatch.GetTimestamp(), MinimumQuarantineSeconds);
 
                 for (int i = __state; i < queue.Count; i++)
                 {
@@ -186,7 +205,11 @@ namespace GuidedArrow.Progression
                     Eligibilities.Remove(item);
                     Eligibilities.Add(
                         item,
-                        new Eligibility { FirstEligiblePass = firstEligiblePass });
+                        new Eligibility
+                        {
+                            FirstEligibleDisplayTick = firstEligibleDisplayTick,
+                            NotBeforeTimestamp = notBeforeTimestamp
+                        });
                 }
             }
             catch
@@ -200,8 +223,7 @@ namespace GuidedArrow.Progression
             __state = null;
             if (__instance == null) return;
 
-            PassState pass = PassStates.GetOrCreateValue(__instance);
-            WorkerState state = new WorkerState { Pass = pass };
+            WorkerState state = new WorkerState();
             __state = state;
 
             try
@@ -210,7 +232,9 @@ namespace GuidedArrow.Progression
                 state.Queue = queue;
                 if (queue == null || queue.Count == 0) return;
 
+                DisplayState display = DisplayStates.GetOrCreateValue(__instance);
                 bool collisionWorkPending = HasCollisionOwnedWork(__instance);
+                long now = Stopwatch.GetTimestamp();
                 object eligibleHead = null;
 
                 for (int i = 0; i < queue.Count; i++)
@@ -224,7 +248,8 @@ namespace GuidedArrow.Progression
                     {
                         eligibility = new Eligibility
                         {
-                            FirstEligiblePass = pass.CompletedPasses + 2L
+                            FirstEligibleDisplayTick = display.CompletedDisplayTicks + RequiredDisplayBoundaries,
+                            NotBeforeTimestamp = AddSeconds(now, MinimumQuarantineSeconds)
                         };
                         Eligibilities.Remove(item);
                         Eligibilities.Add(item, eligibility);
@@ -232,7 +257,8 @@ namespace GuidedArrow.Progression
 
                     if (!collisionWorkPending &&
                         eligibleHead == null &&
-                        eligibility.FirstEligiblePass <= pass.CompletedPasses)
+                        eligibility.FirstEligibleDisplayTick <= display.CompletedDisplayTicks &&
+                        eligibility.NotBeforeTimestamp <= now)
                     {
                         eligibleHead = item;
                     }
@@ -249,9 +275,6 @@ namespace GuidedArrow.Progression
                     state.Head = eligibleHead;
                     queue.Add(eligibleHead);
                 }
-
-                // The original worker still runs. It can drain native-removal work normally, while
-                // its continuation queue contains one age-eligible item or no continuation at all.
             }
             catch
             {
@@ -261,16 +284,17 @@ namespace GuidedArrow.Progression
 
         private static Exception WorkerFinalizer(Exception __exception, WorkerState __state)
         {
-            try
-            {
-                RestoreQuarantinedItems(__state);
-            }
-            finally
-            {
-                CompletePass(__state);
-            }
-
+            RestoreQuarantinedItems(__state);
             return __exception;
+        }
+
+        private static void DisplayTickPostfix(object __instance)
+        {
+            if (__instance == null) return;
+
+            DisplayState display = DisplayStates.GetOrCreateValue(__instance);
+            if (display.CompletedDisplayTicks < long.MaxValue)
+                display.CompletedDisplayTicks++;
         }
 
         private static void RestoreOriginalQueueAfterPrefixFailure(WorkerState state)
@@ -299,8 +323,6 @@ namespace GuidedArrow.Progression
                 bool headStillQueued = state.Head != null && RemoveByReference(state.Queue, state.Head);
                 List<object> restore = new List<object>(state.DeferredItems.Count + 1);
 
-                // A head still present in the queue was never consumed, usually because unrelated
-                // native-removal work threw before the continuation loop. Preserve it and its age.
                 if (headStillQueued)
                     restore.Add(state.Head);
                 else if (state.Head != null)
@@ -309,8 +331,8 @@ namespace GuidedArrow.Progression
                 for (int i = 0; i < state.DeferredItems.Count; i++)
                     restore.Add(state.DeferredItems[i]);
 
-                // Old quarantined work stays ahead of any new continuation queued by callbacks that
-                // ran inside the original worker. Insert in reverse to preserve exact FIFO ordering.
+                // Old quarantined work stays ahead of callbacks that queued new work while the
+                // original worker ran. Reverse insertion preserves exact FIFO ordering.
                 for (int i = restore.Count - 1; i >= 0; i--)
                     state.Queue.Insert(0, restore[i]);
             }
@@ -331,15 +353,6 @@ namespace GuidedArrow.Progression
                 return true;
             }
             return false;
-        }
-
-        private static void CompletePass(WorkerState state)
-        {
-            if (state == null || state.PassCompleted || state.Pass == null) return;
-            state.PassCompleted = true;
-
-            if (state.Pass.CompletedPasses < long.MaxValue)
-                state.Pass.CompletedPasses++;
         }
 
         private static bool HasCollisionOwnedWork(object instance)
@@ -373,10 +386,23 @@ namespace GuidedArrow.Progression
             }
         }
 
+        private static long AddSeconds(long timestamp, double seconds)
+        {
+            if (seconds <= 0d) return timestamp;
+
+            double ticks = seconds * Stopwatch.Frequency;
+            if (double.IsNaN(ticks) || double.IsInfinity(ticks) || ticks <= 0d)
+                return timestamp;
+            if (ticks >= long.MaxValue - timestamp)
+                return long.MaxValue;
+
+            return timestamp + (long)Math.Ceiling(ticks);
+        }
+
         private static void ClearPrefix(object __instance)
         {
             if (__instance != null)
-                PassStates.Remove(__instance);
+                DisplayStates.Remove(__instance);
         }
     }
 }
