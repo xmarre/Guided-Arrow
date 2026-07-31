@@ -13,9 +13,9 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native mission-start failure. The recovered implementation was removed. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
 
-Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated and serialised, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
+Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated, serialised and held behind a real native-frame boundary, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.4 separates projectile-follow camera ownership from kill cinematics, repairs first-time mastery activation, makes character-screen navigation tolerant of newer Bannerlord transition screens, and adds siege-only line-of-sight validation before Autoguidance commits to a target. The stable core's existing reachability, trajectory planning, collision handling and projectile lifecycle remain unchanged.
+v1.3.4 separates projectile-follow camera ownership from kill cinematics, keeps normal mission speed when proximity dilation is disabled, prevents synthetic continuations from spawning during the native collision tick that queued them, repairs first-time mastery activation, makes character-screen navigation tolerant of newer Bannerlord transition screens, and adds siege-only line-of-sight validation before Autoguidance commits to a target.
 
 ## Repository layout
 
