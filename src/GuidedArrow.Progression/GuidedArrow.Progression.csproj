@@ -13,7 +13,7 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <EnableSourceLink>false</EnableSourceLink>
-    <DebugType>pdbonly</DebugType>
+    <DebugType>portable</DebugType>
     <Optimize>true</Optimize>
     <Nullable>disable</Nullable>
   </PropertyGroup>
