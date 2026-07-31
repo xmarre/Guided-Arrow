@@ -31,6 +31,7 @@ namespace GuidedArrow.Progression
 
             DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
+            DeferredContinuationFrameGatePatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
