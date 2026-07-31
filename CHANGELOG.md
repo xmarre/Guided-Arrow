@@ -5,12 +5,13 @@
 - Adds independent MCM switches for the normal guided-projectile camera and confirmed-kill cinematics.
 - Keeps manual guidance and Autoguidance active when the projectile-follow camera is disabled.
 - Clears stale projectile-camera validity before the native camera override runs, preventing the normal combat view from freezing during Autoguidance.
+- Avoids redundant native combat-camera writes from inside the missile-impact callback when projectile following is disabled.
 - Makes disabling Proximity Time Dilation leave mission time at the normal 1.0x speed while preserving Q/E manual time-speed controls.
 - Defers the disabled-kill-camera terminal handoff until the native impact callback has completed and a full display-frame boundary has passed.
 - Prevents camera-disabled hits from re-entering tracked-projectile teardown while Bannerlord is finalizing the impacted missile.
-- Prevents a newly queued penetration continuation from spawning later in the same outer `Mission.Tick` as its native collision.
-- Quarantines each continuation through two deferred-worker passes and until collision contexts, early reactions and native missile removals have drained.
-- Processes at most one age-eligible continuation per clean tick while preserving FIFO order for split-projectile collisions.
+- Gates terminal Stick penetration continuations on three completed display ticks, at least 75 ms of real time, and fully drained collision/removal queues.
+- Processes at most one eligible continuation per clean tick while preserving FIFO order for split-projectile collisions.
+- Keeps save deserialization limited to raw progression data synchronization and migration; starter-node repair now runs only after the campaign is ready.
 - Automatically invests the rank-1 starter point in Guided Release when mastery progression is enabled, including repair of existing enabled profiles that never received it.
 - Makes character-screen mastery navigation tolerate the intermediate screen transitions used by newer Bannerlord builds and reports an actionable fallback instead of silently cancelling.
 - Excludes enemies hidden behind siege geometry before Autoguidance commits to them, while preserving the existing reachability, route and target-ranking logic.
