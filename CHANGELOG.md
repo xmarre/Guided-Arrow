@@ -4,6 +4,10 @@
 
 - Adds independent MCM switches for the normal guided-projectile camera and confirmed-kill cinematics.
 - Keeps manual guidance and Autoguidance active when the projectile-follow camera is disabled.
+- Clears stale projectile-camera validity before the native camera override runs, preventing the normal combat view from freezing during Autoguidance.
+- Makes disabling Proximity Time Dilation leave mission time at the normal 1.0x speed while preserving Q/E manual time-speed controls.
+- Defers the disabled-kill-camera terminal handoff until the native impact callback has completed and a full display-frame boundary has passed.
+- Prevents camera-disabled hits from re-entering tracked-projectile teardown while Bannerlord is finalizing the impacted missile.
 - Automatically invests the rank-1 starter point in Guided Release when mastery progression is enabled, including repair of existing enabled profiles that never received it.
 - Makes character-screen mastery navigation tolerate the intermediate screen transitions used by newer Bannerlord builds and reports an actionable fallback instead of silently cancelling.
 - Excludes enemies hidden behind siege geometry before Autoguidance commits to them, while preserving the existing reachability, route and target-ranking logic.
