@@ -76,7 +76,7 @@ if ($coreHash -ne $ExpectedCoreSha256) {
 Write-Host "Verified stable GuidedArrow.dll SHA-256: $coreHash"
 
 dotnet restore $ProgressionProject
-dotnet build $ProgressionProject -c $Configuration --no-restore -o $ProgressionBuildOut /p:ContinuousIntegrationBuild=true
+dotnet build $ProgressionProject -c $Configuration --no-restore -o $ProgressionBuildOut /p:ContinuousIntegrationBuild=true /p:UseSharedCompilation=false
 Copy-Item (Join-Path $ProgressionBuildOut "GuidedArrow.Progression.dll") (Join-Path $ModuleBin "GuidedArrow.Progression.dll") -Force
 Copy-Item (Join-Path $ProgressionBuildOut "GuidedArrow.Progression.pdb") (Join-Path $ModuleBin "GuidedArrow.Progression.pdb") -Force
 
