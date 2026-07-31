@@ -13,6 +13,11 @@
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <EnableSourceLink>false</EnableSourceLink>
+    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <EmbedUntrackedSources>false</EmbedUntrackedSources>
+    <SourceRevisionId>0000000000000000000000000000000000000000</SourceRevisionId>
+    <RepositoryCommit>0000000000000000000000000000000000000000</RepositoryCommit>
+    <PathMap>$(MSBuildProjectDirectory)=/_/src/GuidedArrow.Progression</PathMap>
     <DebugType>portable</DebugType>
     <Optimize>true</Optimize>
     <Nullable>disable</Nullable>
