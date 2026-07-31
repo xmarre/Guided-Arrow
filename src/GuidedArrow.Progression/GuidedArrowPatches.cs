@@ -25,6 +25,7 @@ namespace GuidedArrow.Progression
             }
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
+            NativePenetrationLifetimePatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);
