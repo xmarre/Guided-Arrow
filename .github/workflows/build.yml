@@ -49,26 +49,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Refresh tracked v1.3.4 artifacts once
-        if: github.event_name == 'pull_request' && github.head_ref == 'fix/reported-camera-progression-siege'
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "${{ github.head_ref }}"
-          $paths = @(
-            "module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.dll",
-            "module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.Progression.pdb",
-            "dist/GuidedArrow-v1.3.4-Bannerlord-1.3.15-to-1.4.7-Universal.zip",
-            "dist/GuidedArrow-v1.3.4-SOURCE.zip",
-            "checksums/SHA256SUMS.txt"
-          )
-          git add -- $paths
-          if (-not (git diff --cached --quiet)) {
-            git commit -m "Refresh v1.3.4 release artifacts [skip ci]"
-            git push origin "HEAD:${{ github.head_ref }}"
-          }
-
       - name: Resolve release version
         id: release_meta
         if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')
