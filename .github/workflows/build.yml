@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 20
     permissions:
       contents: write
@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 8.0.423
 
       - name: Build progression sidecar and package stable core
         shell: pwsh
@@ -35,7 +35,7 @@ jobs:
         run: |
           $project = "src/GuidedArrow.Progression/GuidedArrow.Progression.csproj"
           dotnet restore $project /p:BannerlordReferenceVersion=1.4.7.117484
-          dotnet build $project -c Release --no-restore -o artifacts/compatibility-1.4.7 /p:BannerlordReferenceVersion=1.4.7.117484 /p:ContinuousIntegrationBuild=true
+          dotnet build $project -c Release --no-restore -o artifacts/compatibility-1.4.7 /p:BannerlordReferenceVersion=1.4.7.117484 /p:ContinuousIntegrationBuild=true /p:UseSharedCompilation=false
 
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
