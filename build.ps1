@@ -12,6 +12,53 @@ $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
 $Version = "1.3.4"
 $ExpectedCoreSha256 = "0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0"
+$StableZipTimestamp = [DateTimeOffset]::Parse("2000-01-01T00:00:00Z")
+
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+function New-DeterministicZip {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceDirectory,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $sourceRoot = (Resolve-Path $SourceDirectory).Path.TrimEnd([char[]]@('\', '/'))
+    Remove-Item $DestinationPath -Force -ErrorAction SilentlyContinue
+
+    $fileStream = [System.IO.File]::Open($DestinationPath, [System.IO.FileMode]::CreateNew)
+    try {
+        $archive = New-Object System.IO.Compression.ZipArchive(
+            $fileStream,
+            [System.IO.Compression.ZipArchiveMode]::Create,
+            $false)
+        try {
+            $files = Get-ChildItem $sourceRoot -File -Recurse -Force | Sort-Object FullName
+            foreach ($file in $files) {
+                $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart([char[]]@('\', '/'))
+                $entryName = $relativePath.Replace('\', '/')
+                $entry = $archive.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+                $entry.LastWriteTime = $StableZipTimestamp
+
+                $inputStream = [System.IO.File]::OpenRead($file.FullName)
+                $outputStream = $entry.Open()
+                try {
+                    $inputStream.CopyTo($outputStream)
+                }
+                finally {
+                    $outputStream.Dispose()
+                    $inputStream.Dispose()
+                }
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+    finally {
+        $fileStream.Dispose()
+    }
+}
 
 Remove-Item $Artifacts -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $Dist -Recurse -Force -ErrorAction SilentlyContinue
@@ -37,7 +84,7 @@ $ModuleStage = Join-Path $Stage "GuidedArrow"
 Copy-Item (Join-Path $Root "module/GuidedArrow") $ModuleStage -Recurse -Force
 
 $CompiledZip = Join-Path $Dist "GuidedArrow-v$Version-Bannerlord-1.3.15-to-1.4.7-Universal.zip"
-Compress-Archive -Path $ModuleStage -DestinationPath $CompiledZip -CompressionLevel Optimal
+New-DeterministicZip -SourceDirectory $Stage -DestinationPath $CompiledZip
 
 $SourceStage = Join-Path $Stage "GuidedArrow-v$Version-SOURCE"
 New-Item -ItemType Directory -Force -Path $SourceStage | Out-Null
@@ -54,7 +101,7 @@ Get-ChildItem $SourceStage -File -Recurse -Force |
     Remove-Item -Force
 
 $SourceZip = Join-Path $Dist "GuidedArrow-v$Version-SOURCE.zip"
-Compress-Archive -Path (Join-Path $SourceStage "*") -DestinationPath $SourceZip -CompressionLevel Optimal
+New-DeterministicZip -SourceDirectory $SourceStage -DestinationPath $SourceZip
 
 $Files = @(
     $CompiledZip,
