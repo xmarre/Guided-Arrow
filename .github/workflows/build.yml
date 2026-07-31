@@ -19,8 +19,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -49,21 +47,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Refresh tracked v1.3.4 artifacts once
-        if: github.event_name == 'pull_request' && hashFiles('.refresh-generated-v1.3.4') != ''
-        shell: pwsh
-        run: |
-          Remove-Item .refresh-generated-v1.3.4 -Force
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A -- module/GuidedArrow/bin/Win64_Shipping_Client dist checksums .refresh-generated-v1.3.4
-          if (git diff --cached --quiet) {
-            Write-Host "Tracked artifacts already match the verified v1.3.4 build."
-            exit 0
-          }
-          git commit -m "Refresh v1.3.4 generated artifacts"
-          git push origin HEAD:${{ github.head_ref }}
-
       - name: Resolve release version
         id: release_meta
         if: github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')
@@ -90,6 +73,8 @@ jobs:
 
           - Adds independent switches for the guided-projectile camera and confirmed-kill cinematics.
           - Keeps manual guidance and Autoguidance active while the player remains in the normal combat camera.
+          - Prevents the native combat view from freezing when projectile following is disabled.
+          - Keeps mission time at 1.0x when Proximity Time Dilation is disabled while preserving Q/E manual control.
           - Repairs first-time mastery activation by granting the mandatory Guided Release starter level.
           - Makes character-screen mastery navigation tolerant of newer Bannerlord transition screens.
           - Rejects enemies hidden behind fortification geometry before siege Autoguidance commits to them.
