@@ -27,6 +27,7 @@ namespace GuidedArrow.Progression
             }
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
+            ExactEarlyCollisionReactionPatch.Install(harmony, behaviorType);
             // NativePenetrationLifetimePatch must remain disabled. It intercepts Bannerlord's
             // global Mission collision callback and can leave native presentation/audio teardown
             // state corrupted after guided impacts and mission transitions.
@@ -38,6 +39,7 @@ namespace GuidedArrow.Progression
             DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
             TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
+            SafeContinuationMissionBoundaryPatch.Install(harmony, behaviorType);
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
