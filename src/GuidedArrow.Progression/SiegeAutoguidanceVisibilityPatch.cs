@@ -11,9 +11,9 @@ using TaleWorlds.MountAndBlade;
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Excludes siege targets hidden behind fortification geometry before the stable core adds them
-    /// to its parallel candidate/head lists. Those lists must never be structurally modified after
-    /// route planning has captured integer indices into them.
+    /// Provides optional siege-specific target policies before the stable core adds agents to its
+    /// parallel candidate/head lists. The direct-line visibility veto is disabled by default because
+    /// it rejects parapet targets that the existing trajectory planner can reach around geometry.
     /// </summary>
     internal static class SiegeAutoguidanceVisibilityPatch
     {
@@ -95,7 +95,19 @@ namespace GuidedArrow.Progression
         private static void TargetValidPostfix(object __instance, Agent target, ref bool __result)
         {
             if (!__result || __instance == null || target == null) return;
-            if (!ShouldFilterCurrentMission()) return;
+            if (!IsCurrentMissionSiege()) return;
+
+            ExperienceSettings settings = ExperienceSettings.Instance;
+            if (settings != null && settings.DisableAutoguidanceInSieges)
+            {
+                __result = false;
+                return;
+            }
+
+            // The former default-on direct ray veto rejected soldiers behind parapet lips even when
+            // the existing trajectory planner could steer around the obstruction. Keep it as an
+            // explicit experimental option rather than weakening siege Autoguidance by default.
+            if (settings == null || !settings.UseDirectLineSiegeTargetFilter) return;
 
             // This validation is invoked while CollectAutoguidanceCandidates is building both
             // parallel lists. Rejecting the target here means neither list receives an entry. Never
@@ -104,11 +116,8 @@ namespace GuidedArrow.Progression
                 __result = false;
         }
 
-        private static bool ShouldFilterCurrentMission()
+        private static bool IsCurrentMissionSiege()
         {
-            ExperienceSettings settings = ExperienceSettings.Instance;
-            if (settings != null && !settings.VisibleSiegeTargetsOnly) return false;
-
             Mission mission = Mission.Current;
             if (mission == null)
             {
@@ -215,7 +224,6 @@ namespace GuidedArrow.Progression
             }
             catch
             {
-                // Failure-open preserves the stable core on an unknown engine API shape.
                 visible = true;
             }
 
