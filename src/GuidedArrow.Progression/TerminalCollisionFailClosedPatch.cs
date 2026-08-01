@@ -8,7 +8,7 @@ namespace GuidedArrow.Progression
     /// <summary>
     /// Keeps non-agent, shield and native/TOR terminal collisions fail-closed. Eligible
     /// Guided Arrow agent Stick/BecomeInvisible reactions may use the controlled continuation
-    /// path, which is quarantined until a complete Mission.OnTick boundary.
+    /// path, which is quarantined until a complete behavior pre-display boundary.
     /// </summary>
     internal static class TerminalCollisionFailClosedPatch
     {
@@ -71,8 +71,6 @@ namespace GuidedArrow.Progression
 
             try
             {
-                // Patch the guarded predicate first. By itself it is inert because the terminal
-                // resolution depth remains zero.
                 harmony.Patch(
                     hasRemainingMethod,
                     postfix: new HarmonyMethod(hasRemainingPostfix)
@@ -116,7 +114,7 @@ namespace GuidedArrow.Progression
                     __instance,
                     "Eligible terminal native collision " +
                     ReactionName(__args[1]) +
-                    " may use the post-Mission.OnTick controlled continuation path.");
+                    " may use the controlled pre-display continuation path.");
                 return;
             }
 
@@ -195,8 +193,7 @@ namespace GuidedArrow.Progression
         {
             try
             {
-                return Convert.ToInt32(reaction) ==
-                       NativePassThroughReaction;
+                return Convert.ToInt32(reaction) == NativePassThroughReaction;
             }
             catch
             {
@@ -209,9 +206,7 @@ namespace GuidedArrow.Progression
             return reaction == null ? "Unknown" : reaction.ToString();
         }
 
-        private static void TryLog(
-            object instance,
-            string message)
+        private static void TryLog(object instance, string message)
         {
             if (_logMethod == null ||
                 instance == null ||
