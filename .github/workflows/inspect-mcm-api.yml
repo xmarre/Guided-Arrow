@@ -1,0 +1,43 @@
+name: Inspect MCM API
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.423
+      - name: Restore packages
+        shell: pwsh
+        run: dotnet restore src/GuidedArrow.Progression/GuidedArrow.Progression.csproj /p:BannerlordReferenceVersion=1.3.15.110062
+      - name: Decompile MCM assemblies
+        shell: pwsh
+        run: |
+          dotnet tool install ilspycmd --tool-path .tools
+          $pkg = Join-Path $env:USERPROFILE '.nuget\packages\bannerlord.mcm\5.12.1'
+          if (-not (Test-Path $pkg)) { throw "MCM package not found: $pkg" }
+          New-Item -ItemType Directory -Force artifacts/mcm | Out-Null
+          Get-ChildItem $pkg -Recurse -Filter '*.dll' | ForEach-Object {
+            $name = [IO.Path]::GetFileNameWithoutExtension($_.Name)
+            & .tools/ilspycmd.exe -p -o (Join-Path 'artifacts/mcm' $name) $_.FullName
+          }
+          Get-ChildItem $pkg -Recurse | Select-Object FullName | Out-File artifacts/mcm-package-files.txt
+      - name: Upload inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcm-api-inspection
+          path: artifacts/**
+          if-no-files-found: error
+          retention-days: 1
