@@ -5,33 +5,30 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
-using TaleWorlds.MountAndBlade;
 
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Keeps custom penetration continuation creation outside Mission.OnTick.
-    /// The core may queue terminal agent continuations during collision handling, but normal
-    /// behavior ticks only drain native-removal work. One aged continuation is processed after
-    /// the complete outer mission tick returns and all collision-owned queues are empty.
+    /// Keeps custom continuation creation outside collision-owned behavior ticks without patching
+    /// Bannerlord Mission methods. Normal deferred workers see only native-removal work. One aged
+    /// continuation is drained from the GuidedArrowBehavior OnPreDisplayMissionTick postfix.
     /// </summary>
     internal static class SafeContinuationMissionBoundaryPatch
     {
         private sealed class BoundaryState
         {
-            internal long CompletedOuterTicks;
+            internal long CompletedDisplayTicks;
         }
 
         private sealed class Eligibility
         {
-            internal long FirstEligibleOuterTick;
+            internal long FirstEligibleDisplayTick;
         }
 
-        private sealed class QueuePatchState
+        private sealed class HiddenQueueState
         {
             internal IList Queue;
-            internal readonly List<object> HiddenItems = new List<object>();
-            internal bool Isolated;
+            internal readonly List<object> Items = new List<object>();
             internal bool Restored;
         }
 
@@ -43,10 +40,8 @@ namespace GuidedArrow.Progression
         private static readonly ConditionalWeakTable<object, Eligibility> Eligibilities =
             new ConditionalWeakTable<object, Eligibility>();
 
-        private static MethodInfo _getMissionBehaviorMethod;
         private static MethodInfo _processDeferredMethod;
         private static MethodInfo _logMethod;
-
         private static FieldInfo _pendingContinuationSpawnsField;
         private static FieldInfo _pendingCollisionContextsField;
         private static FieldInfo _earlyCollisionReactionsField;
@@ -66,142 +61,70 @@ namespace GuidedArrow.Progression
                 .FirstOrDefault(method =>
                     method.Name == "QueuePenetrationContinuation" &&
                     method.GetParameters().Length == 2);
-            MethodInfo missionTick = typeof(Mission)
+            MethodInfo[] displayMethods = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(method =>
-                {
-                    if (method.Name != "OnTick" ||
-                        method.ReturnType != typeof(void))
-                        return false;
+                .Where(method => method.Name == "OnPreDisplayMissionTick" && !method.IsAbstract)
+                .ToArray();
 
-                    ParameterInfo[] parameters = method.GetParameters();
-                    return parameters.Length == 4 &&
-                           parameters[0].ParameterType == typeof(float) &&
-                           parameters[1].ParameterType == typeof(float) &&
-                           parameters[2].ParameterType == typeof(bool) &&
-                           parameters[3].ParameterType == typeof(bool);
-                });
-            MethodInfo openGetMissionBehavior = typeof(Mission)
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(method =>
-                    method.Name == "GetMissionBehavior" &&
-                    method.IsGenericMethodDefinition &&
-                    method.GetGenericArguments().Length == 1 &&
-                    method.GetParameters().Length == 0);
-
-            _pendingContinuationSpawnsField = AccessTools.Field(
-                behaviorType,
-                "_pendingContinuationSpawns");
-            _pendingCollisionContextsField = AccessTools.Field(
-                behaviorType,
-                "_pendingCollisionContexts");
-            _earlyCollisionReactionsField = AccessTools.Field(
-                behaviorType,
-                "_earlyCollisionReactions");
-            _pendingNativeMissileRemovalsField = AccessTools.Field(
-                behaviorType,
-                "_pendingNativeMissileRemovals");
-            _logMethod = behaviorType
-                .GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(method =>
-                    method.Name == "Log" &&
-                    method.ReturnType == typeof(void) &&
-                    method.GetParameters().Length == 1 &&
-                    method.GetParameters()[0].ParameterType == typeof(string));
+            _pendingContinuationSpawnsField = AccessTools.Field(behaviorType, "_pendingContinuationSpawns");
+            _pendingCollisionContextsField = AccessTools.Field(behaviorType, "_pendingCollisionContexts");
+            _earlyCollisionReactionsField = AccessTools.Field(behaviorType, "_earlyCollisionReactions");
+            _pendingNativeMissileRemovalsField = AccessTools.Field(behaviorType, "_pendingNativeMissileRemovals");
+            _logMethod = AccessTools.Method(behaviorType, "Log", new[] { typeof(string) });
 
             if (_processDeferredMethod == null ||
                 queueMethod == null ||
-                missionTick == null ||
-                openGetMissionBehavior == null ||
+                displayMethods.Length == 0 ||
                 _pendingContinuationSpawnsField == null ||
                 _pendingCollisionContextsField == null ||
                 _earlyCollisionReactionsField == null ||
                 _pendingNativeMissileRemovalsField == null)
                 return;
 
-            MethodInfo queuePrefix = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(QueuePrefix));
-            MethodInfo queuePostfix = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(QueuePostfix));
-            MethodInfo workerPrefix = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(WorkerPrefix));
-            MethodInfo workerPostfix = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(WorkerPostfix));
-            MethodInfo workerFinalizer = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(WorkerFinalizer));
-            MethodInfo missionTickPostfix = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(MissionTickPostfix));
-            MethodInfo clearPrefix = AccessTools.Method(
-                typeof(SafeContinuationMissionBoundaryPatch),
-                nameof(ClearPrefix));
+            MethodInfo queuePrefix = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(QueuePrefix));
+            MethodInfo queuePostfix = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(QueuePostfix));
+            MethodInfo workerPrefix = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(WorkerPrefix));
+            MethodInfo workerPostfix = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(WorkerPostfix));
+            MethodInfo workerFinalizer = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(WorkerFinalizer));
+            MethodInfo displayPostfix = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(DisplayPostfix));
+            MethodInfo clearPrefix = AccessTools.Method(typeof(SafeContinuationMissionBoundaryPatch), nameof(ClearPrefix));
 
-            if (queuePrefix == null ||
-                queuePostfix == null ||
-                workerPrefix == null ||
-                workerPostfix == null ||
-                workerFinalizer == null ||
-                missionTickPostfix == null ||
+            if (queuePrefix == null || queuePostfix == null || workerPrefix == null ||
+                workerPostfix == null || workerFinalizer == null || displayPostfix == null ||
                 clearPrefix == null)
                 return;
 
             try
             {
-                _getMissionBehaviorMethod =
-                    openGetMissionBehavior.MakeGenericMethod(behaviorType);
-
                 harmony.Patch(
                     queueMethod,
                     prefix: new HarmonyMethod(queuePrefix) { priority = Priority.First },
                     postfix: new HarmonyMethod(queuePostfix) { priority = Priority.Last });
 
-                // Run before the existing continuation serializer. During an ordinary behavior
-                // tick that serializer sees no custom continuation work; native removals still run.
                 harmony.Patch(
                     _processDeferredMethod,
-                    prefix: new HarmonyMethod(workerPrefix)
-                    {
-                        priority = int.MaxValue
-                    },
-                    postfix: new HarmonyMethod(workerPostfix)
-                    {
-                        priority = Priority.Last
-                    },
-                    finalizer: new HarmonyMethod(workerFinalizer)
-                    {
-                        priority = Priority.Last
-                    });
+                    prefix: new HarmonyMethod(workerPrefix) { priority = int.MaxValue },
+                    postfix: new HarmonyMethod(workerPostfix) { priority = Priority.Last },
+                    finalizer: new HarmonyMethod(workerFinalizer) { priority = Priority.Last });
 
-                // Priority.Last places the drain after every normal Mission.OnTick postfix that
-                // participates in the engine-owned mission lifecycle.
-                harmony.Patch(
-                    missionTick,
-                    postfix: new HarmonyMethod(missionTickPostfix)
-                    {
-                        priority = Priority.Last
-                    });
+                for (int i = 0; i < displayMethods.Length; i++)
+                {
+                    harmony.Patch(
+                        displayMethods[i],
+                        postfix: new HarmonyMethod(displayPostfix) { priority = Priority.Last });
+                }
 
-                foreach (string methodName in new[] { "StartGuidedShot", "ResetAll" })
+                foreach (string name in new[] { "StartGuidedShot", "ResetAll" })
                 {
                     foreach (MethodInfo method in behaviorType
                         .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                        .Where(candidate =>
-                            candidate.Name == methodName &&
-                            !candidate.IsAbstract))
+                        .Where(candidate => candidate.Name == name && !candidate.IsAbstract))
                     {
                         try
                         {
                             harmony.Patch(
                                 method,
-                                prefix: new HarmonyMethod(clearPrefix)
-                                {
-                                    priority = Priority.First
-                                });
+                                prefix: new HarmonyMethod(clearPrefix) { priority = Priority.First });
                         }
                         catch { }
                     }
@@ -209,150 +132,94 @@ namespace GuidedArrow.Progression
             }
             catch
             {
-                _getMissionBehaviorMethod = null;
                 _safeDrainDepth = 0;
             }
         }
 
-        private static void QueuePrefix(
-            object __instance,
-            out int __state)
+        private static void QueuePrefix(object __instance, out int __state)
         {
             __state = -1;
             if (__instance == null) return;
-
             try
             {
-                IList queue =
-                    _pendingContinuationSpawnsField.GetValue(__instance) as IList;
+                IList queue = _pendingContinuationSpawnsField.GetValue(__instance) as IList;
                 if (queue != null) __state = queue.Count;
             }
             catch { }
         }
 
-        private static void QueuePostfix(
-            object __instance,
-            int __state)
+        private static void QueuePostfix(object __instance, int __state)
         {
             if (__instance == null || __state < 0) return;
-
             try
             {
-                IList queue =
-                    _pendingContinuationSpawnsField.GetValue(__instance) as IList;
+                IList queue = _pendingContinuationSpawnsField.GetValue(__instance) as IList;
                 if (queue == null || queue.Count <= __state) return;
 
                 BoundaryState boundary = BoundaryStates.GetOrCreateValue(__instance);
-                long firstEligible =
-                    boundary.CompletedOuterTicks == long.MaxValue
-                        ? long.MaxValue
-                        : boundary.CompletedOuterTicks + 1L;
+                long ready = boundary.CompletedDisplayTicks == long.MaxValue
+                    ? long.MaxValue
+                    : boundary.CompletedDisplayTicks + 1L;
 
                 for (int i = __state; i < queue.Count; i++)
                 {
                     object item = queue[i];
                     if (item == null) continue;
-
                     Eligibilities.Remove(item);
-                    Eligibilities.Add(
-                        item,
-                        new Eligibility
-                        {
-                            FirstEligibleOuterTick = firstEligible
-                        });
+                    Eligibilities.Add(item, new Eligibility { FirstEligibleDisplayTick = ready });
                 }
             }
-            catch
-            {
-                // MissionTickPostfix gives untagged entries a conservative extra-tick delay.
-            }
+            catch { }
         }
 
-        private static void WorkerPrefix(
-            object __instance,
-            out QueuePatchState __state)
+        private static void WorkerPrefix(object __instance, out HiddenQueueState __state)
         {
             __state = null;
             if (__instance == null || _safeDrainDepth > 0) return;
-
             try
             {
-                IList queue =
-                    _pendingContinuationSpawnsField.GetValue(__instance) as IList;
+                IList queue = _pendingContinuationSpawnsField.GetValue(__instance) as IList;
                 if (queue == null || queue.Count == 0) return;
 
-                QueuePatchState state = new QueuePatchState
-                {
-                    Queue = queue,
-                    Isolated = true
-                };
-
-                for (int i = 0; i < queue.Count; i++)
-                    state.HiddenItems.Add(queue[i]);
-
+                HiddenQueueState state = new HiddenQueueState { Queue = queue };
+                for (int i = 0; i < queue.Count; i++) state.Items.Add(queue[i]);
                 queue.Clear();
                 __state = state;
             }
-            catch
-            {
-                __state = null;
-            }
+            catch { }
         }
 
-        private static void WorkerPostfix(QueuePatchState __state)
+        private static void WorkerPostfix(HiddenQueueState __state)
         {
-            RestoreHiddenContinuations(__state);
+            Restore(__state);
         }
 
-        private static Exception WorkerFinalizer(
-            Exception __exception,
-            QueuePatchState __state)
+        private static Exception WorkerFinalizer(Exception __exception, HiddenQueueState __state)
         {
-            RestoreHiddenContinuations(__state);
+            Restore(__state);
             return __exception;
         }
 
-        private static void RestoreHiddenContinuations(QueuePatchState state)
+        private static void Restore(HiddenQueueState state)
         {
-            if (state == null ||
-                state.Restored ||
-                !state.Isolated ||
-                state.Queue == null)
-                return;
-
+            if (state == null || state.Restored || state.Queue == null) return;
             state.Restored = true;
             try
             {
-                // Existing queued work remains ahead of callbacks that appended newer work while
-                // native-removal processing ran.
-                for (int i = state.HiddenItems.Count - 1; i >= 0; i--)
-                    state.Queue.Insert(0, state.HiddenItems[i]);
+                for (int i = state.Items.Count - 1; i >= 0; i--)
+                    state.Queue.Insert(0, state.Items[i]);
             }
-            catch
-            {
-                // The original worker exception, if any, remains authoritative.
-            }
+            catch { }
         }
 
-        private static void MissionTickPostfix(Mission __instance)
+        private static void DisplayPostfix(object __instance)
         {
-            if (__instance == null ||
-                _safeDrainDepth > 0 ||
-                _getMissionBehaviorMethod == null ||
-                _processDeferredMethod == null)
-                return;
+            if (__instance == null || _safeDrainDepth > 0 || _processDeferredMethod == null) return;
 
-            object behavior = null;
-            BoundaryState boundary = null;
-
+            BoundaryState boundary = BoundaryStates.GetOrCreateValue(__instance);
             try
             {
-                behavior = _getMissionBehaviorMethod.Invoke(__instance, null);
-                if (behavior == null) return;
-
-                boundary = BoundaryStates.GetOrCreateValue(behavior);
-                IList queue =
-                    _pendingContinuationSpawnsField.GetValue(behavior) as IList;
+                IList queue = _pendingContinuationSpawnsField.GetValue(__instance) as IList;
                 if (queue == null || queue.Count == 0) return;
 
                 object head = queue[0];
@@ -362,122 +229,84 @@ namespace GuidedArrow.Progression
                     return;
                 }
 
-                if (!Eligibilities.TryGetValue(
-                        head,
-                        out Eligibility eligibility) ||
-                    eligibility == null)
+                if (!Eligibilities.TryGetValue(head, out Eligibility eligibility) || eligibility == null)
                 {
-                    long firstEligible =
-                        boundary.CompletedOuterTicks == long.MaxValue
-                            ? long.MaxValue
-                            : boundary.CompletedOuterTicks + 1L;
-                    eligibility = new Eligibility
-                    {
-                        FirstEligibleOuterTick = firstEligible
-                    };
+                    long ready = boundary.CompletedDisplayTicks == long.MaxValue
+                        ? long.MaxValue
+                        : boundary.CompletedDisplayTicks + 1L;
                     Eligibilities.Remove(head);
-                    Eligibilities.Add(head, eligibility);
+                    Eligibilities.Add(head, new Eligibility { FirstEligibleDisplayTick = ready });
                     return;
                 }
 
-                if (eligibility.FirstEligibleOuterTick >
-                    boundary.CompletedOuterTicks)
+                if (eligibility.FirstEligibleDisplayTick > boundary.CompletedDisplayTicks ||
+                    HasCollisionOwnedWork(__instance))
                     return;
 
-                if (HasCollisionOwnedWork(behavior))
-                    return;
-
-                TryLog(
-                    "Processing one controlled penetration continuation after " +
-                    "the complete Mission.OnTick boundary.");
+                TryLog("Processing one controlled penetration continuation after a complete GuidedArrowBehavior.OnPreDisplayMissionTick boundary.");
 
                 _safeDrainDepth++;
                 try
                 {
-                    _processDeferredMethod.Invoke(behavior, null);
+                    _processDeferredMethod.Invoke(__instance, null);
                 }
                 finally
                 {
                     _safeDrainDepth--;
                 }
 
-                if (!ContainsByReference(queue, head))
-                    Eligibilities.Remove(head);
+                if (!ContainsReference(queue, head)) Eligibilities.Remove(head);
             }
             catch (TargetInvocationException exception)
             {
                 Exception inner = exception.InnerException ?? exception;
-                TryLog(
-                    "Deferred penetration continuation failed after Mission.OnTick: " +
-                    inner.GetType().Name + ".");
+                TryLog("Deferred penetration continuation failed after pre-display boundary: " + inner.GetType().Name + ".");
             }
             catch (Exception exception)
             {
-                TryLog(
-                    "Deferred penetration continuation boundary failed: " +
-                    exception.GetType().Name + ".");
+                TryLog("Deferred penetration pre-display boundary failed: " + exception.GetType().Name + ".");
             }
             finally
             {
-                if (boundary != null &&
-                    boundary.CompletedOuterTicks < long.MaxValue)
-                {
-                    boundary.CompletedOuterTicks++;
-                }
+                if (boundary.CompletedDisplayTicks < long.MaxValue)
+                    boundary.CompletedDisplayTicks++;
             }
         }
 
         private static bool HasCollisionOwnedWork(object instance)
         {
-            return ReadCount(_pendingCollisionContextsField, instance) > 0 ||
-                   ReadCount(_earlyCollisionReactionsField, instance) > 0 ||
-                   ReadCount(_pendingNativeMissileRemovalsField, instance) > 0;
+            return Count(_pendingCollisionContextsField, instance) > 0 ||
+                   Count(_earlyCollisionReactionsField, instance) > 0 ||
+                   Count(_pendingNativeMissileRemovalsField, instance) > 0;
         }
 
-        private static int ReadCount(
-            FieldInfo field,
-            object instance)
+        private static int Count(FieldInfo field, object instance)
         {
             if (field == null || instance == null) return int.MaxValue;
-
             try
             {
                 object value = field.GetValue(instance);
-                if (value == null) return int.MaxValue;
                 if (value is ICollection collection) return collection.Count;
-
-                PropertyInfo countProperty = value.GetType().GetProperty(
+                PropertyInfo property = value?.GetType().GetProperty(
                     "Count",
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                if (countProperty == null) return int.MaxValue;
-
-                object count = countProperty.GetValue(value, null);
+                object count = property?.GetValue(value, null);
                 return count is int integer ? integer : int.MaxValue;
             }
-            catch
-            {
-                return int.MaxValue;
-            }
+            catch { return int.MaxValue; }
         }
 
-        private static bool ContainsByReference(
-            IList list,
-            object item)
+        private static bool ContainsReference(IList list, object item)
         {
             if (list == null || item == null) return false;
-
             for (int i = 0; i < list.Count; i++)
-            {
-                if (ReferenceEquals(list[i], item))
-                    return true;
-            }
+                if (ReferenceEquals(list[i], item)) return true;
             return false;
         }
 
         private static void ClearPrefix(object __instance)
         {
-            if (__instance != null)
-                BoundaryStates.Remove(__instance);
+            if (__instance != null) BoundaryStates.Remove(__instance);
         }
 
         private static void TryLog(string message)
