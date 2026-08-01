@@ -10,15 +10,15 @@ using TaleWorlds.MountAndBlade;
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Correlates the core's early collision-reaction queue with the exact native missile index.
-    /// The patch observes Mission.MissileHitCallback without mutating its reaction or return value,
-    /// so Bannerlord retains complete ownership of collision presentation, sound and teardown.
+    /// Correlates the core's early collision-reaction queue with the exact missile index using only
+    /// GuidedArrowBehavior callbacks. No Bannerlord Mission method is patched: the OnMissileHit
+    /// prefix observes the collision packet after the matching early reaction has been queued, tags
+    /// the newest unclaimed queue entry, and leaves Bannerlord's presentation/audio path untouched.
     /// </summary>
     internal static class ExactEarlyCollisionReactionPatch
     {
         private sealed class HitScope
         {
-            internal Mission Mission;
             internal int MissileIndex = -1;
             internal bool HasVictim;
             internal bool HitShield;
@@ -27,7 +27,6 @@ namespace GuidedArrow.Progression
         private sealed class HitPatchState
         {
             internal HitScope Previous;
-            internal HitScope Current;
         }
 
         private sealed class TaggedMissileIndex
@@ -39,7 +38,6 @@ namespace GuidedArrow.Progression
         {
             internal IList Queue;
             internal readonly List<object> ExistingItems = new List<object>();
-            internal int MissileIndex = -1;
             internal bool QueueIsolated;
             internal bool Restored;
         }
@@ -59,12 +57,14 @@ namespace GuidedArrow.Progression
         {
             if (harmony == null || behaviorType == null) return;
 
-            MethodInfo missileHitCallback = typeof(Mission)
+            MethodInfo onMissileHit = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .FirstOrDefault(method =>
-                    method.Name == "MissileHitCallback" &&
-                    method.ReturnType == typeof(bool) &&
-                    method.GetParameters().Length == 12);
+                    method.Name == "OnMissileHit" &&
+                    !method.IsAbstract &&
+                    method.GetParameters().Any(parameter =>
+                        parameter.ParameterType == typeof(AttackCollisionData) ||
+                        parameter.ParameterType == typeof(AttackCollisionData).MakeByRefType()));
 
             MethodInfo queueEarlyReaction = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
@@ -96,7 +96,7 @@ namespace GuidedArrow.Progression
                 behaviorType,
                 "_earlyCollisionReactions");
 
-            if (missileHitCallback == null ||
+            if (onMissileHit == null ||
                 queueEarlyReaction == null ||
                 consumeEarlyReaction == null ||
                 _findTrackedMissileMethod == null ||
@@ -107,10 +107,10 @@ namespace GuidedArrow.Progression
 
             MethodInfo hitPrefix = AccessTools.Method(
                 typeof(ExactEarlyCollisionReactionPatch),
-                nameof(MissileHitPrefix));
+                nameof(OnMissileHitPrefix));
             MethodInfo hitFinalizer = AccessTools.Method(
                 typeof(ExactEarlyCollisionReactionPatch),
-                nameof(MissileHitFinalizer));
+                nameof(OnMissileHitFinalizer));
             MethodInfo queuePrefix = AccessTools.Method(
                 typeof(ExactEarlyCollisionReactionPatch),
                 nameof(EarlyQueuePrefix));
@@ -135,7 +135,7 @@ namespace GuidedArrow.Progression
             try
             {
                 harmony.Patch(
-                    missileHitCallback,
+                    onMissileHit,
                     prefix: new HarmonyMethod(hitPrefix) { priority = Priority.First },
                     finalizer: new HarmonyMethod(hitFinalizer) { priority = Priority.Last });
 
@@ -170,33 +170,36 @@ namespace GuidedArrow.Progression
             return true;
         }
 
-        private static void MissileHitPrefix(
-            Mission __instance,
+        private static void OnMissileHitPrefix(
+            object __instance,
             object[] __args,
+            MethodBase __originalMethod,
             out HitPatchState __state)
         {
-            HitScope current = new HitScope { Mission = __instance };
+            __state = new HitPatchState { Previous = _activeHit };
+            HitScope current = new HitScope();
 
             try
             {
-                object collisionData =
-                    __args != null && __args.Length > 1
-                        ? __args[1]
-                        : null;
+                object collisionData = FindCollisionData(__args);
                 if (collisionData != null)
                 {
-                    current.MissileIndex = (int)_missileIndexProperty.GetValue(
-                        collisionData,
-                        null);
-                    current.HitShield = (bool)_shieldHitProperty.GetValue(
-                        collisionData,
-                        null);
+                    current.MissileIndex = Convert.ToInt32(
+                        _missileIndexProperty.GetValue(collisionData, null));
+                    current.HitShield = Convert.ToBoolean(
+                        _shieldHitProperty.GetValue(collisionData, null));
                 }
 
-                current.HasVictim =
-                    __args != null &&
-                    __args.Length > 10 &&
-                    __args[10] is Agent;
+                current.HasVictim = FindVictim(__args, __originalMethod) != null;
+
+                if (__instance != null && current.MissileIndex >= 0)
+                {
+                    object tracked = _findTrackedMissileMethod.Invoke(
+                        __instance,
+                        new object[] { current.MissileIndex });
+                    if (tracked != null)
+                        TagNewestUnclaimedReaction(__instance, current.MissileIndex);
+                }
             }
             catch
             {
@@ -205,15 +208,10 @@ namespace GuidedArrow.Progression
                 current.HitShield = false;
             }
 
-            __state = new HitPatchState
-            {
-                Previous = _activeHit,
-                Current = current
-            };
             _activeHit = current;
         }
 
-        private static Exception MissileHitFinalizer(
+        private static Exception OnMissileHitFinalizer(
             Exception __exception,
             HitPatchState __state)
         {
@@ -221,39 +219,101 @@ namespace GuidedArrow.Progression
             return __exception;
         }
 
+        private static object FindCollisionData(object[] args)
+        {
+            if (args == null) return null;
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                object value = args[i];
+                if (value != null && value.GetType() == typeof(AttackCollisionData))
+                    return value;
+            }
+            return null;
+        }
+
+        private static Agent FindVictim(
+            object[] args,
+            MethodBase originalMethod)
+        {
+            if (args == null) return null;
+
+            try
+            {
+                ParameterInfo[] parameters = originalMethod?.GetParameters();
+                if (parameters != null)
+                {
+                    for (int i = 0; i < parameters.Length && i < args.Length; i++)
+                    {
+                        string name = parameters[i].Name ?? string.Empty;
+                        if (args[i] is Agent agent &&
+                            name.IndexOf("victim", StringComparison.OrdinalIgnoreCase) >= 0)
+                            return agent;
+                    }
+                }
+            }
+            catch { }
+
+            int seenAgents = 0;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (!(args[i] is Agent agent)) continue;
+                seenAgents++;
+                if (seenAgents == 2) return agent;
+            }
+            return null;
+        }
+
+        private static void TagNewestUnclaimedReaction(
+            object instance,
+            int missileIndex)
+        {
+            try
+            {
+                IList queue = _earlyCollisionReactionsField.GetValue(instance) as IList;
+                if (queue == null || queue.Count == 0) return;
+
+                for (int i = queue.Count - 1; i >= 0; i--)
+                {
+                    object item = queue[i];
+                    if (item == null || EarlyReactionMissiles.TryGetValue(item, out _))
+                        continue;
+
+                    EarlyReactionMissiles.Add(
+                        item,
+                        new TaggedMissileIndex { MissileIndex = missileIndex });
+                    return;
+                }
+            }
+            catch
+            {
+                // The core's shooter/victim matcher remains the fallback.
+            }
+        }
+
         private static void EarlyQueuePrefix(
             object __instance,
             out EarlyQueuePatchState __state)
         {
             __state = null;
-            HitScope scope = _activeHit;
-            if (__instance == null ||
-                scope == null ||
-                scope.MissileIndex < 0)
-                return;
+            if (__instance == null) return;
 
             try
             {
-                object tracked = _findTrackedMissileMethod.Invoke(
-                    __instance,
-                    new object[] { scope.MissileIndex });
-                if (tracked == null) return;
-
                 IList queue = _earlyCollisionReactionsField.GetValue(__instance) as IList;
                 if (queue == null) return;
 
                 EarlyQueuePatchState state = new EarlyQueuePatchState
                 {
                     Queue = queue,
-                    MissileIndex = scope.MissileIndex,
                     QueueIsolated = true
                 };
 
                 for (int i = 0; i < queue.Count; i++)
                     state.ExistingItems.Add(queue[i]);
 
-                // Let the core create its one new reaction in an isolated list. This prevents
-                // the fixed 32-entry trim from deleting another live missile's exact reaction.
+                // Let the core append its new reaction to an isolated list so its fixed 32-entry
+                // trim cannot discard an older live projectile's pending reaction.
                 queue.Clear();
                 __state = state;
             }
@@ -265,18 +325,18 @@ namespace GuidedArrow.Progression
 
         private static void EarlyQueuePostfix(EarlyQueuePatchState __state)
         {
-            RestoreAndTagEarlyQueue(__state);
+            RestoreEarlyQueue(__state);
         }
 
         private static Exception EarlyQueueFinalizer(
             Exception __exception,
             EarlyQueuePatchState __state)
         {
-            RestoreAndTagEarlyQueue(__state);
+            RestoreEarlyQueue(__state);
             return __exception;
         }
 
-        private static void RestoreAndTagEarlyQueue(EarlyQueuePatchState state)
+        private static void RestoreEarlyQueue(EarlyQueuePatchState state)
         {
             if (state == null ||
                 state.Restored ||
@@ -294,21 +354,8 @@ namespace GuidedArrow.Progression
                 state.Queue.Clear();
                 for (int i = 0; i < state.ExistingItems.Count; i++)
                     state.Queue.Add(state.ExistingItems[i]);
-
                 for (int i = 0; i < createdItems.Count; i++)
-                {
-                    object item = createdItems[i];
-                    state.Queue.Add(item);
-                    if (item == null) continue;
-
-                    EarlyReactionMissiles.Remove(item);
-                    EarlyReactionMissiles.Add(
-                        item,
-                        new TaggedMissileIndex
-                        {
-                            MissileIndex = state.MissileIndex
-                        });
-                }
+                    state.Queue.Add(createdItems[i]);
             }
             catch
             {
