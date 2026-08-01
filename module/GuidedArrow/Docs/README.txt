@@ -1,4 +1,4 @@
-GUIDED ARROW v1.3.4
+GUIDED ARROW v1.3.5
 Bannerlord 1.3.15-1.4.7
 
 INSTALLATION
@@ -10,14 +10,14 @@ ButterLib
 UIExtenderEx
 Mod Configuration Menu v5
 
-SIMPLE CAMERA CONTROLS
-Open MCM > Guided Arrow - Simple Controls.
-- Follow the Guided Projectile controls the normal flight camera only.
-- Play Kill Cinematics controls confirmed-kill cinematics independently.
+CAMERA CONTROLS
+Open the main MCM > Guided Arrow page.
+- Follow the Guided Projectile is under Projectile Camera and controls the normal flight camera only.
+- Play Kill Cinematics is under Kill Cinematic and controls confirmed-kill cinematics independently.
 Disable both to keep the normal player combat camera while manual guidance or Autoguidance continues.
 
 SIEGE AUTOGUIDANCE
-Keep Visible Siege Targets Only enabled to exclude enemies hidden behind walls, towers, closed gates and other fortification geometry before Autoguidance commits to them.
+Visible Siege Targets Only is under the main Guided Arrow > Autonomous Guidance section. Keep it enabled to exclude enemies hidden behind walls, towers, closed gates and other fortification geometry before Autoguidance commits to them.
 
 MASTERY TREE
 Open from the character-development screen with the bottom-right Guided Arrow Mastery button or press Ctrl+U on the campaign map.
