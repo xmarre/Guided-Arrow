@@ -19,17 +19,18 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Decompile stable behavior
+      - name: Decompile stable continuation path
         shell: pwsh
         run: |
           dotnet tool install ilspycmd --tool-path .tools
           New-Item -ItemType Directory -Force artifacts | Out-Null
           $core = "module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll"
           & .tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior $core | Set-Content artifacts/core-behavior.cs -Encoding UTF8
-      - name: Upload decompiled behavior
+          & .tools/ilspycmd.exe -t GuidedArrow.MissileDamageBridge $core | Set-Content artifacts/missile-damage-bridge.cs -Encoding UTF8
+      - name: Upload decompiled continuation path
         uses: actions/upload-artifact@v4
         with:
-          name: current-guided-arrow-core-behavior
-          path: artifacts/core-behavior.cs
+          name: current-guided-arrow-continuation-path
+          path: artifacts/*.cs
           if-no-files-found: error
           retention-days: 1
