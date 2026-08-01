@@ -186,14 +186,11 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static bool SpawnPrefix(object[] __args, ref bool __result, out ContinuationPatchState __state)
+        private static bool SpawnPrefix(object[] __args, out ContinuationPatchState __state)
         {
             __state = null;
             if (__args == null || __args.Length < 2 || __args[1] == null)
-            {
-                __result = false;
-                return false;
-            }
+                return true;
 
             object context = __args[1];
             try
@@ -202,10 +199,13 @@ namespace GuidedArrow.Progression
                 Vec3 impactVelocity = (Vec3)_impactVelocityField.GetValue(context);
                 Vec3 impactDirection = (Vec3)_impactDirectionField.GetValue(context);
 
+                // This patch only applies the extra exit offset. It must not replace the stable
+                // core's broader fallback chain or turn a recoverable collision packet into an
+                // unconditional failed continuation.
                 if (!TryComputeNormalizedDirection(impactVelocity, impactDirection, out Vec3 direction))
                 {
-                    __result = false;
-                    return false;
+                    ExitDistanceSnapshots.Remove(context);
+                    return true;
                 }
 
                 float desiredExitDistance = SafeContinuationExitDistance;
@@ -229,19 +229,19 @@ namespace GuidedArrow.Progression
                     OriginalImpactPosition = impactPosition,
                     ImpactPositionAdjusted = true
                 };
-                return true;
             }
             catch
             {
                 ExitDistanceSnapshots.Remove(context);
-                // Do not let the uncorrected continuation spawn inside an agent.
+                // Failure-open: the verified core still validates the launch packet, speed,
+                // resolved damage bridge, custom missile, native entity and tracked result.
                 __state = null;
-                __result = false;
-                return false;
             }
+
+            return true;
         }
 
-        private static void SpawnPostfix(object[] __args, ref bool __result, ContinuationPatchState __state)
+        private static void SpawnPostfix(ContinuationPatchState __state)
         {
             if (__state != null && __state.ImpactPositionAdjusted && __state.Context != null)
             {
@@ -249,34 +249,11 @@ namespace GuidedArrow.Progression
                 catch { }
             }
 
-            if (!__result) return;
-
-            // Harmony exposes the original out parameter through __args[2]. The stable
-            // worker dereferences it immediately when the method returns true, so never
-            // allow a true/null or true/incomplete result to cross that boundary.
-            object continuation =
-                __args != null && __args.Length >= 3
-                    ? __args[2]
-                    : null;
-            if (continuation == null)
-            {
-                __result = false;
-                return;
-            }
-
-            object missile;
-            try { missile = _trackedMissileNativeMissileField.GetValue(continuation); }
-            catch
-            {
-                __result = false;
-                return;
-            }
-            if (missile == null)
-                __result = false;
-
-            // Do not call AgentVisuals.GetEntity or PassThroughEntity here. The continuation is
-            // already created beyond the captured victim depth, while that victim's native
-            // presentation may have been destroyed before this deferred worker runs.
+            // Do not reinterpret the private out parameter through Harmony's object[] snapshot.
+            // The core returns true only after ValidateSyntheticMissileEntity succeeds and
+            // CreateTrackedMissileFromSpawn returns a non-null tracked missile. The former
+            // validation incorrectly observed the pre-call null out slot and changed every
+            // successful continuation result back to false.
         }
 
         private static void DeferredPrefix(object __instance, out DeferredBatchState __state)
