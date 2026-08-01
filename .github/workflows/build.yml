@@ -40,7 +40,7 @@ jobs:
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.3.4
+          name: GuidedArrow-v1.3.5
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
@@ -71,18 +71,16 @@ jobs:
 
           **Compatible with Mount & Blade II: Bannerlord 1.3.15–1.4.7.**
 
-          ### Camera, progression, penetration and siege targeting
+          ### Split launch ordering, penetration lifetime and MCM cleanup
 
-          - Adds independent switches for the guided-projectile camera and confirmed-kill cinematics.
-          - Keeps manual guidance and Autoguidance active while the player remains in the normal combat camera.
-          - Prevents stale projectile-camera state from freezing the native combat view.
-          - Keeps mission time at 1.0x when Proximity Time Dilation is disabled while preserving Q/E manual control.
-          - Defers disabled-kill-camera terminal handling until the native impact callback and a complete display-frame boundary have finished.
-          - Continues penetration only when Bannerlord reports native PassThrough; terminal Stick and BecomeInvisible reactions end without creating a synthetic replacement missile.
-          - Keeps save deserialization free of hero and MCM-dependent starter repair, then restores the mandatory Guided Release level after the campaign is ready.
-          - Makes character-screen mastery navigation tolerant of newer Bannerlord transition screens.
-          - Filters hidden siege targets before the core builds route indices, preserving candidate/head-list index stability across repeated Autoguided shots.
-          - Adds a Simple Controls MCM page and focused configuration guide.
+          - Creates ordinary generated split followers before manual guidance or Autoguidance initializes.
+          - Preserves the exact native missile through repeated configured agent penetrations instead of deleting it after the first promoted pass-through.
+          - Keeps finite penetration counts authoritative; Infinite Agent Penetration permits unlimited agent hits while terrain, shields and scene obstacles remain terminal.
+          - Correlates simultaneous collision reactions by exact missile index and protects 48-projectile bursts from the core's fixed reaction-queue trimming.
+          - Moves Follow the Guided Projectile into Projectile Camera on the main Guided Arrow MCM page.
+          - Moves Play Kill Cinematics into Kill Cinematic on the main Guided Arrow MCM page.
+          - Moves Visible Siege Targets Only into Autonomous Guidance on the main Guided Arrow MCM page.
+          - Preserves values saved through the former Simple Controls page and hides that duplicate page.
           - Verifies the sidecar against Bannerlord 1.3.15 and 1.4.7 reference assemblies.
           - Retains the byte-identical verified v1.1.17 gameplay core.
 
