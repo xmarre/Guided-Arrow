@@ -4,7 +4,7 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 
 ## Current repository snapshot
 
-- Mod version: **1.3.4**
+- Mod version: **1.3.5**
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
@@ -15,7 +15,7 @@ The supplied v1.1.17 clean archive did not include the original core source. A r
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated, serialised and held behind a real native-frame boundary, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
-v1.3.4 separates projectile-follow camera ownership from kill cinematics, keeps normal mission speed when proximity dilation is disabled, prevents synthetic continuations from spawning during the native collision tick that queued them, repairs first-time mastery activation, makes character-screen navigation tolerant of newer Bannerlord transition screens, and adds siege-only line-of-sight validation before Autoguidance commits to a target.
+v1.3.5 creates generated split followers before guidance starts, preserves the exact native missile through repeated configured agent penetrations, and integrates the former Simple Controls entries into the appropriate sections of the main Guided Arrow MCM page while retaining existing saved values.
 
 ## Repository layout
 

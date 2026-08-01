@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.5
+
+- Creates ordinary generated split followers during the launch callback before manual guidance or Autoguidance initializes.
+- Preserves the exact native missile lifetime across repeated configured agent penetrations instead of deleting it after the first promoted pass-through.
+- Keeps finite penetration counts authoritative and treats Infinite Agent Penetration as unlimited agent hits while terrain, shields, walls, trees and other world collisions remain terminal.
+- Correlates early collision reactions by exact missile index and isolates 48-projectile callback bursts from the core's fixed reaction-queue trimming.
+- Moves Follow the Guided Projectile into Projectile Camera, Play Kill Cinematics into Kill Cinematic, and Visible Siege Targets Only into Autonomous Guidance on the main Guided Arrow MCM page.
+- Preserves values previously saved through Guided Arrow - Simple Controls and saves or resets that hidden compatibility storage together with the main page.
+- Removes the separate Simple Controls page without rewriting the byte-locked gameplay core.
+- Verifies the maintained sidecar against Bannerlord 1.3.15 and 1.4.7 reference assemblies.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the update through the maintained v1.3.5 sidecar.
+
 ## 1.3.4
 
 - Adds independent MCM switches for the normal guided-projectile camera and confirmed-kill cinematics.

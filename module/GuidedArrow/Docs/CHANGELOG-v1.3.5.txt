@@ -1,0 +1,12 @@
+Guided Arrow v1.3.5
+
+- Creates generated split followers before guidance or Autoguidance starts.
+- Preserves the exact native missile through repeated configured agent penetrations.
+- Keeps finite penetration limits authoritative; Infinite Agent Penetration is unlimited against agents while world collisions remain terminal.
+- Correlates simultaneous collision reactions by exact missile index and protects 48-projectile bursts from reaction-queue trimming.
+- Moves Follow the Guided Projectile into Projectile Camera on the main Guided Arrow MCM page.
+- Moves Play Kill Cinematics into Kill Cinematic on the main Guided Arrow MCM page.
+- Moves Visible Siege Targets Only into Autonomous Guidance on the main Guided Arrow MCM page.
+- Preserves existing values from the former Simple Controls page and hides that duplicate page.
+- Verifies Bannerlord 1.3.15-1.4.7 compatibility.
+- Retains the byte-identical verified v1.1.17 gameplay core.

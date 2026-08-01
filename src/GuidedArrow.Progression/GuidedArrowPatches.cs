@@ -9,6 +9,8 @@ namespace GuidedArrow.Progression
     {
         internal static void Install(Harmony harmony)
         {
+            McmMainSettingsIntegrationPatch.Install(harmony);
+
             Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
                 .FirstOrDefault(candidate => candidate.GetName().Name == "GuidedArrow");
             if (assembly == null) return;
@@ -21,9 +23,11 @@ namespace GuidedArrow.Progression
             {
                 ProgressionRuntimeSettingsPatch.Install(harmony, behaviorType, settingsType);
                 GuidanceTimeControlPatch.Install(harmony, behaviorType, settingsType);
+                SplitLaunchOrderingPatch.Install(harmony, behaviorType, settingsType);
             }
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
+            NativePenetrationLifetimePatch.Install(harmony, behaviorType);
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
             SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);

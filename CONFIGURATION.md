@@ -6,10 +6,10 @@ Guided Arrow exposes many controls because projectile steering, autonomous targe
 
 ### Autoguidance while keeping the normal player camera
 
-In **Guided Arrow - Simple Controls**:
+In the main **Guided Arrow** MCM page:
 
-- Disable **Follow the Guided Projectile**.
-- Disable **Play Kill Cinematics**.
+- Under **Projectile Camera**, disable **Follow the Guided Projectile**.
+- Under **Kill Cinematic**, disable **Play Kill Cinematics**.
 
 Guidance and Autoguidance continue to steer the projectile. These switches affect presentation only.
 
@@ -42,7 +42,7 @@ In the normal **Guided Arrow** MCM page:
 - `1 — Closest to Camera Aim`: biases selection toward the current camera aim direction.
 - `2 — Absolute Closest Enemy`: prioritizes distance while retaining the core reachability preference.
 
-For sieges, keep **Visible Siege Targets Only** enabled under **Guided Arrow - Simple Controls**. It excludes enemies hidden behind walls, towers, closed gates and other fortification geometry before Autoguidance commits to them.
+For sieges, keep **Visible Siege Targets Only** enabled under **Guided Arrow > Autonomous Guidance**. It excludes enemies hidden behind walls, towers, closed gates and other fortification geometry before Autoguidance commits to them.
 
 ## Steering and route settings
 
