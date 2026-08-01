@@ -9,6 +9,8 @@ namespace GuidedArrow.Progression
     {
         internal static void Install(Harmony harmony)
         {
+            McmMainSettingsIntegrationPatch.Install(harmony);
+
             Assembly assembly = AppDomain.CurrentDomain.GetAssemblies()
                 .FirstOrDefault(candidate => candidate.GetName().Name == "GuidedArrow");
             if (assembly == null) return;
