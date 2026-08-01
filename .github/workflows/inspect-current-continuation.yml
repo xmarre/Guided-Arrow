@@ -1,0 +1,35 @@
+name: Inspect current continuation spawn
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Decompile stable behavior
+        shell: pwsh
+        run: |
+          dotnet tool install ilspycmd --tool-path .tools
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $core = "module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll"
+          & .tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior $core | Set-Content artifacts/core-behavior.cs -Encoding UTF8
+      - name: Upload decompiled behavior
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-guided-arrow-core-behavior
+          path: artifacts/core-behavior.cs
+          if-no-files-found: error
+          retention-days: 1
