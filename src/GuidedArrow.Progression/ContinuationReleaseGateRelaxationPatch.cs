@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 
@@ -9,7 +10,8 @@ namespace GuidedArrow.Progression
     /// Collapses the legacy emergency continuation quarantine to one completed display boundary.
     /// The protected-memory crash was caused by the terminal launch bridge's native data override;
     /// retaining the old six-boundary/150 ms delay only serializes split volleys and produces visible
-    /// projectile and camera stalls.
+    /// projectile stalls. This patch runs after the native release patch's display counter so the
+    /// following behavior mission tick can expose the continuation without a wall-clock delay.
     /// </summary>
     internal static class ContinuationReleaseGateRelaxationPatch
     {
@@ -68,12 +70,9 @@ namespace GuidedArrow.Progression
                 ? null
                 : AccessTools.Field(itemStateType, "NotBeforeTimestamp");
 
-            MethodInfo workerPrefix = AccessTools.Method(
-                releaseType,
-                "WorkerPrefix");
-            MethodInfo relaxationPrefix = AccessTools.Method(
+            MethodInfo displayPostfix = AccessTools.Method(
                 typeof(ContinuationReleaseGateRelaxationPatch),
-                nameof(ReleaseGatePrefix));
+                nameof(DisplayPostfix));
 
             if (_pendingContinuationSpawnsField == null ||
                 _behaviorStates == null ||
@@ -83,26 +82,33 @@ namespace GuidedArrow.Progression
                 _completedDisplayTicksField == null ||
                 _firstReleasedDisplayTickField == null ||
                 _notBeforeTimestampField == null ||
-                workerPrefix == null ||
-                relaxationPrefix == null)
+                displayPostfix == null)
                 return;
 
-            try
+            foreach (MethodInfo method in behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Where(candidate =>
+                    candidate.Name == "OnPreDisplayMissionTick" &&
+                    !candidate.IsAbstract))
             {
-                harmony.Patch(
-                    workerPrefix,
-                    prefix: new HarmonyMethod(relaxationPrefix)
-                    {
-                        priority = int.MaxValue
-                    });
-            }
-            catch
-            {
-                // The legacy release gate remains unchanged if its private layout changes.
+                try
+                {
+                    harmony.Patch(
+                        method,
+                        postfix: new HarmonyMethod(displayPostfix)
+                        {
+                            // Run after NativeContinuationSourceReleasePatch.DisplayPostfix has
+                            // incremented CompletedDisplayTicks for this completed display pass.
+                            priority = int.MinValue
+                        });
+                }
+                catch
+                {
+                }
             }
         }
 
-        private static void ReleaseGatePrefix(object __instance)
+        private static void DisplayPostfix(object __instance)
         {
             if (__instance == null) return;
 
@@ -126,8 +132,9 @@ namespace GuidedArrow.Progression
                 long completedDisplayTicks = Convert.ToInt64(
                     _completedDisplayTicksField.GetValue(behaviorState));
 
-                // Keep one real display boundary after exact source release. Once that boundary has
-                // completed, satisfy the obsolete six-boundary and wall-clock portions of the gate.
+                // Retain exactly one completed display boundary after the source missile leaves
+                // the mission registry. Once it has completed, satisfy the obsolete six-boundary
+                // and wall-clock portions of the emergency gate before the next OnMissionTick.
                 if (firstReleasedDisplayTick < 0L ||
                     completedDisplayTicks <= firstReleasedDisplayTick)
                     return;
@@ -146,7 +153,7 @@ namespace GuidedArrow.Progression
             }
             catch
             {
-                // The legacy release gate remains fail-safe for this pass.
+                // The legacy gate remains fail-safe for this pass if a private layout changes.
             }
         }
     }
