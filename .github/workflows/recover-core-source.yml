@@ -1,0 +1,78 @@
+name: Recover core reference source
+
+on:
+  push:
+    branches: [docs/add-recovered-core-source]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: docs/add-recovered-core-source
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Decompile verified core as reference source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $toolPath = Join-Path $PWD '.tools'
+          dotnet tool install --tool-path $toolPath ilspycmd --version 10.1.1.8388
+
+          $dll = 'module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll'
+          $out = 'src/GuidedArrow.Core.Recovered'
+          $expected = '0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0'
+          $actual = (Get-FileHash $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Core hash mismatch. Expected $expected, got $actual"
+          }
+
+          Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          & (Join-Path $toolPath 'ilspycmd.exe') --nested-directories -p -o $out $dll --disable-updatecheck
+
+          $generatedProject = Get-ChildItem $out -Filter '*.csproj' -File | Select-Object -First 1
+          if ($null -ne $generatedProject) {
+            Rename-Item $generatedProject.FullName 'GuidedArrow.Core.Recovered.csproj'
+          }
+
+          @"
+          # GuidedArrow core recovered reference source
+
+          This directory is a complete ILSpy reconstruction of the verified binary gameplay core shipped as `GuidedArrow.dll`.
+
+          - Source binary SHA-256: `$actual`
+          - Decompiled with: ILSpy command-line tool 10.1.1.8388
+          - Source binary lineage: Guided Arrow v1.1.17 core retained by releases v1.2.1 through v1.3.6
+          - Production status: reference-only; excluded from `GuidedArrow.sln` and `build.ps1`
+
+          This is not the unavailable original authoring project. Decompilation cannot restore original comments, formatting, local-variable intent, exact project metadata, or guarantee a byte-identical rebuild. A previous rebuilt DLL from recovered source crashed when entering a battle, so releases continue to package the verified binary and apply maintained fixes through `GuidedArrow.Progression`.
+
+          The files are included to make the core implementation readable, auditable and maintainable. Do not replace the shipped core DLL with a rebuild without separate in-game validation.
+          "@ | Set-Content (Join-Path $out 'README.md') -Encoding UTF8
+
+          "$actual  GuidedArrow.dll" | Set-Content (Join-Path $out 'BINARY-SHA256.txt') -Encoding ASCII
+          & (Join-Path $toolPath 'ilspycmd.exe') -l c,i,s,d,e $dll --disable-updatecheck | Set-Content (Join-Path $out 'TYPE-MANIFEST.txt') -Encoding UTF8
+
+      - name: Commit recovered reference source
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/GuidedArrow.Core.Recovered
+          if (git diff --cached --quiet) {
+            Write-Host 'Recovered source is already current.'
+            exit 0
+          }
+          git commit -m 'Add recovered core reference source'
+          git push origin HEAD:docs/add-recovered-core-source
