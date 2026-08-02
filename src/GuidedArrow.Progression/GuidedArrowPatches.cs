@@ -35,7 +35,9 @@ namespace GuidedArrow.Progression
             SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);
             CameraControlPatch.Install(harmony, behaviorType);
 
-            DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
+            // A confirmed-kill callback sourced from OnMissileHitAlreadyDead can precede the
+            // authoritative terminal collision reaction for the same still-live missile. Treating
+            // that callback as a duplicate-continuation marker suppresses legitimate penetration.
             TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             SafeContinuationMissionBoundaryPatch.Install(harmony, behaviorType);
