@@ -34,6 +34,18 @@ namespace GuidedArrow.Progression
             internal int MissileIndex;
         }
 
+        private sealed class HitSnapshot
+        {
+            internal bool HasVictim;
+            internal bool HitShield;
+        }
+
+        private sealed class BehaviorHitState
+        {
+            internal readonly Dictionary<int, HitSnapshot> ByMissileIndex =
+                new Dictionary<int, HitSnapshot>();
+        }
+
         private sealed class EarlyQueuePatchState
         {
             internal IList Queue;
@@ -47,6 +59,8 @@ namespace GuidedArrow.Progression
 
         private static readonly ConditionalWeakTable<object, TaggedMissileIndex> EarlyReactionMissiles =
             new ConditionalWeakTable<object, TaggedMissileIndex>();
+        private static readonly ConditionalWeakTable<object, BehaviorHitState> HitStates =
+            new ConditionalWeakTable<object, BehaviorHitState>();
 
         private static PropertyInfo _missileIndexProperty;
         private static PropertyInfo _shieldHitProperty;
@@ -79,6 +93,12 @@ namespace GuidedArrow.Progression
                     method.GetParameters().Length == 1 &&
                     method.GetParameters()[0].ParameterType == typeof(int));
 
+            MethodInfo resolveCollisionReaction = behaviorType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(method =>
+                    method.Name == "ResolveCollisionReaction" &&
+                    method.GetParameters().Length == 3);
+
             _findTrackedMissileMethod = behaviorType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .FirstOrDefault(method =>
@@ -99,6 +119,7 @@ namespace GuidedArrow.Progression
             if (onMissileHit == null ||
                 queueEarlyReaction == null ||
                 consumeEarlyReaction == null ||
+                resolveCollisionReaction == null ||
                 _findTrackedMissileMethod == null ||
                 _missileIndexProperty == null ||
                 _shieldHitProperty == null ||
@@ -123,13 +144,21 @@ namespace GuidedArrow.Progression
             MethodInfo consumePrefix = AccessTools.Method(
                 typeof(ExactEarlyCollisionReactionPatch),
                 nameof(EarlyConsumePrefix));
+            MethodInfo resolveFinalizer = AccessTools.Method(
+                typeof(ExactEarlyCollisionReactionPatch),
+                nameof(ResolveCollisionFinalizer));
+            MethodInfo clearPrefix = AccessTools.Method(
+                typeof(ExactEarlyCollisionReactionPatch),
+                nameof(ClearPrefix));
 
             if (hitPrefix == null ||
                 hitFinalizer == null ||
                 queuePrefix == null ||
                 queuePostfix == null ||
                 queueFinalizer == null ||
-                consumePrefix == null)
+                consumePrefix == null ||
+                resolveFinalizer == null ||
+                clearPrefix == null)
                 return;
 
             try
@@ -148,6 +177,26 @@ namespace GuidedArrow.Progression
                 harmony.Patch(
                     consumeEarlyReaction,
                     prefix: new HarmonyMethod(consumePrefix) { priority = Priority.First });
+
+                harmony.Patch(
+                    resolveCollisionReaction,
+                    finalizer: new HarmonyMethod(resolveFinalizer) { priority = Priority.Last });
+
+                foreach (string name in new[] { "StartGuidedShot", "ResetAll" })
+                {
+                    foreach (MethodInfo method in behaviorType
+                        .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                        .Where(candidate => candidate.Name == name && !candidate.IsAbstract))
+                    {
+                        try
+                        {
+                            harmony.Patch(
+                                method,
+                                prefix: new HarmonyMethod(clearPrefix) { priority = Priority.First });
+                        }
+                        catch { }
+                    }
+                }
             }
             catch
             {
@@ -155,19 +204,41 @@ namespace GuidedArrow.Progression
             }
         }
 
-        internal static bool TryGetActiveAgentHit(
+        internal static bool TryGetAgentHit(
+            object instance,
             int missileIndex,
             out bool hitShield)
         {
             hitShield = false;
+
             HitScope scope = _activeHit;
-            if (scope == null ||
-                scope.MissileIndex != missileIndex ||
-                !scope.HasVictim)
+            if (scope != null &&
+                scope.MissileIndex == missileIndex &&
+                scope.HasVictim)
+            {
+                hitShield = scope.HitShield;
+                return true;
+            }
+
+            if (instance == null || missileIndex < 0)
                 return false;
 
-            hitShield = scope.HitShield;
-            return true;
+            try
+            {
+                if (!HitStates.TryGetValue(instance, out BehaviorHitState state) ||
+                    state == null ||
+                    !state.ByMissileIndex.TryGetValue(missileIndex, out HitSnapshot snapshot) ||
+                    snapshot == null ||
+                    !snapshot.HasVictim)
+                    return false;
+
+                hitShield = snapshot.HitShield;
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void OnMissileHitPrefix(
@@ -194,6 +265,13 @@ namespace GuidedArrow.Progression
 
                 if (__instance != null && current.MissileIndex >= 0)
                 {
+                    BehaviorHitState state = HitStates.GetOrCreateValue(__instance);
+                    state.ByMissileIndex[current.MissileIndex] = new HitSnapshot
+                    {
+                        HasVictim = current.HasVictim,
+                        HitShield = current.HitShield
+                    };
+
                     object tracked = _findTrackedMissileMethod.Invoke(
                         __instance,
                         new object[] { current.MissileIndex });
@@ -361,6 +439,33 @@ namespace GuidedArrow.Progression
             {
                 // Preserve the core queue as the fallback if an unknown private shape changes.
             }
+        }
+
+        private static Exception ResolveCollisionFinalizer(
+            object __instance,
+            object[] __args,
+            Exception __exception)
+        {
+            if (__instance != null && __args != null && __args.Length > 0)
+            {
+                try
+                {
+                    int missileIndex = Convert.ToInt32(__args[0]);
+                    if (HitStates.TryGetValue(__instance, out BehaviorHitState state) &&
+                        state != null)
+                    {
+                        state.ByMissileIndex.Remove(missileIndex);
+                    }
+                }
+                catch { }
+            }
+
+            return __exception;
+        }
+
+        private static void ClearPrefix(object __instance)
+        {
+            if (__instance != null) HitStates.Remove(__instance);
         }
 
         private static void EarlyConsumePrefix(
