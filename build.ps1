@@ -23,7 +23,7 @@ function New-DeterministicZip {
         [Parameter(Mandatory = $true)][string]$DestinationPath
     )
 
-    $sourceRoot = (Resolve-Path $SourceDirectory).Path.TrimEnd([char[]]@('\\', '/'))
+    $sourceRoot = (Resolve-Path $SourceDirectory).Path.TrimEnd([char[]]@('\', '/'))
     Remove-Item $DestinationPath -Force -ErrorAction SilentlyContinue
 
     $fileStream = [System.IO.File]::Open($DestinationPath, [System.IO.FileMode]::CreateNew)
@@ -35,8 +35,8 @@ function New-DeterministicZip {
         try {
             $files = Get-ChildItem $sourceRoot -File -Recurse -Force | Sort-Object FullName
             foreach ($file in $files) {
-                $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart([char[]]@('\\', '/'))
-                $entryName = $relativePath.Replace('\\', '/')
+                $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart([char[]]@('\', '/'))
+                $entryName = $relativePath.Replace('\', '/')
                 $entry = $archive.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
                 $entry.LastWriteTime = $StableZipTimestamp
 
