@@ -1,0 +1,39 @@
+name: Inspect current Guided Arrow core
+
+on:
+  push:
+    branches: [fix/restore-native-mission-audio]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Decompile behavior
+        shell: pwsh
+        run: |
+          dotnet tool install ilspycmd --tool-path .tools
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $core = "module/GuidedArrow/bin/Win64_Shipping_Client/GuidedArrow.dll"
+          & .tools/ilspycmd.exe -t GuidedArrow.GuidedArrowBehavior $core | Set-Content artifacts/core-behavior.cs -Encoding UTF8
+          Select-String -Path artifacts/core-behavior.cs -Pattern "ProcessDeferredNativeMissileWork\(\)|TrySpawnPenetrationContinuation|OnMissionTick|OnPreDisplayMissionTick|ResolveCollisionReaction" -Context 12,70 | ForEach-Object {
+            $_.Context.PreContext
+            $_.Line
+            $_.Context.PostContext
+            "----"
+          }
+      - name: Upload decompiled behavior
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-guided-arrow-core
+          path: artifacts/core-behavior.cs
+          if-no-files-found: error
+          retention-days: 1
