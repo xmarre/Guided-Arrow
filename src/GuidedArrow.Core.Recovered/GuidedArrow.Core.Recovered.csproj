@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>GuidedArrow</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>net472</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>15.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>False</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="TaleWorlds.MountAndBlade.View" />
+    <Reference Include="TaleWorlds.MountAndBlade" />
+    <Reference Include="TaleWorlds.Library" />
+    <Reference Include="TaleWorlds.Engine" />
+    <Reference Include="TaleWorlds.Engine.GauntletUI" />
+    <Reference Include="TaleWorlds.Core" />
+    <Reference Include="TaleWorlds.InputSystem" />
+    <Reference Include="0Harmony" />
+    <Reference Include="MCMv5" />
+    <Reference Include="TaleWorlds.DotNet" />
+    <Reference Include="TaleWorlds.ScreenSystem" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+</Project>
