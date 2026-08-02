@@ -42,6 +42,7 @@ namespace GuidedArrow.Progression
             // that callback as a duplicate-continuation marker suppresses legitimate penetration.
             TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
             NativeContinuationSourceReleasePatch.Install(harmony, behaviorType);
+            ContinuationReleaseGateRelaxationPatch.Install(harmony, behaviorType);
             TerminalContinuationLaunchSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             // The locked core already drains deferred native work from GuidedArrowBehavior.OnMissionTick.
