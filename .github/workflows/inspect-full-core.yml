@@ -1,8 +1,8 @@
 name: Inspect full Guided Arrow core
 
 on:
-  push:
-    branches: [fix/restore-native-mission-audio]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
