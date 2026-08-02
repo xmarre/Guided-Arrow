@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.6
+
+- Restores battle-command voices and normal mission audio by keeping maintained collision and continuation patches off Bannerlord's native `Mission.*` methods.
+- Fixes protected-memory crashes during repeated terminal penetration continuations.
+- Restores configured finite and infinite agent penetration across native `PassThrough`, `Stick` and `BecomeInvisible` reactions while keeping shields and world collisions terminal.
+- Correlates delayed collision work with the exact tracked projectile so recycled missile indices cannot continue an older impact chain.
+- Preserves split-volley camera ownership through valid penetrations and restores the native combat camera cleanly when the guided swarm ends.
+- Repairs Autoguidance after impacts and continuation materialization through one coordinated retarget path without duplicate route rebuilds.
+- Serializes safe continuation creation behind completed display boundaries without the former fixed 150 ms staircase.
+- Improves siege Autoguidance by retaining normal obstacle routing and making the strict direct-line target filter optional and disabled by default.
+- Retains the reorganized main MCM settings and compatibility with values saved through the former Simple Controls page.
+- Verifies the maintained sidecar against Bannerlord 1.3.15 and 1.4.7 reference assemblies.
+- Retains the byte-identical verified v1.1.17 gameplay core and applies the update through the maintained v1.3.6 sidecar.
+
 ## 1.3.5
 
 - Creates ordinary generated split followers during the launch callback before manual guidance or Autoguidance initializes.
