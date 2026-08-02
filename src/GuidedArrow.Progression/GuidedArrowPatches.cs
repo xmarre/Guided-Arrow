@@ -32,6 +32,7 @@ namespace GuidedArrow.Progression
             // is patched, preserving native command voices and mission presentation teardown.
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
+            ContinuationRuntimeStabilityPatch.Install(harmony, behaviorType);
             SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);
             CameraControlPatch.Install(harmony, behaviorType);
 
