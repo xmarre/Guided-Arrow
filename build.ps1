@@ -10,7 +10,7 @@ $ProgressionBuildOut = Join-Path $Artifacts "progression-build"
 $Stage = Join-Path $Artifacts "stage"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
-$Version = "1.3.5"
+$Version = "1.3.6"
 $ExpectedCoreSha256 = "0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0"
 $StableZipTimestamp = [DateTimeOffset]::Parse("2000-01-01T00:00:00Z")
 
@@ -23,7 +23,7 @@ function New-DeterministicZip {
         [Parameter(Mandatory = $true)][string]$DestinationPath
     )
 
-    $sourceRoot = (Resolve-Path $SourceDirectory).Path.TrimEnd([char[]]@('\', '/'))
+    $sourceRoot = (Resolve-Path $SourceDirectory).Path.TrimEnd([char[]]@('\\', '/'))
     Remove-Item $DestinationPath -Force -ErrorAction SilentlyContinue
 
     $fileStream = [System.IO.File]::Open($DestinationPath, [System.IO.FileMode]::CreateNew)
@@ -35,8 +35,8 @@ function New-DeterministicZip {
         try {
             $files = Get-ChildItem $sourceRoot -File -Recurse -Force | Sort-Object FullName
             foreach ($file in $files) {
-                $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart([char[]]@('\', '/'))
-                $entryName = $relativePath.Replace('\', '/')
+                $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart([char[]]@('\\', '/'))
+                $entryName = $relativePath.Replace('\\', '/')
                 $entry = $archive.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
                 $entry.LastWriteTime = $StableZipTimestamp
 
