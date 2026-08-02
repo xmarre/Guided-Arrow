@@ -40,7 +40,8 @@ namespace GuidedArrow.Progression
             // that callback as a duplicate-continuation marker suppresses legitimate penetration.
             TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
-            SafeContinuationMissionBoundaryPatch.Install(harmony, behaviorType);
+            // The locked core already drains deferred native work from GuidedArrowBehavior.OnMissionTick.
+            // Moving AddCustomMissile into OnPreDisplayMissionTick can raise AccessViolationException.
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
