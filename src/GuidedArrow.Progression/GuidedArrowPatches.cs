@@ -39,6 +39,7 @@ namespace GuidedArrow.Progression
             // authoritative terminal collision reaction for the same still-live missile. Treating
             // that callback as a duplicate-continuation marker suppresses legitimate penetration.
             TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
+            NativeContinuationSourceReleasePatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
             // The locked core already drains deferred native work from GuidedArrowBehavior.OnMissionTick.
             // Moving AddCustomMissile into OnPreDisplayMissionTick can raise AccessViolationException.
