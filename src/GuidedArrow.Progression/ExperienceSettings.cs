@@ -29,10 +29,21 @@ namespace GuidedArrow.Progression
 
         [SettingPropertyGroup("Autonomous Guidance", GroupOrder = 1)]
         [SettingPropertyBool(
-            "Visible Siege Targets Only",
+            "Disable Autoguidance During Sieges",
             Order = 4,
             RequireRestart = false,
-            HintText = "During siege missions, excludes enemies hidden behind walls, towers, closed gates and other scene geometry before Autoguidance commits to them. Visible enemies and targets exposed through open approaches remain eligible. Disable only if another scene mod makes visibility ray checks unreliable.")]
+            HintText = "Suppresses automatic target acquisition only during siege missions. Guided arrows and manual steering remain available. Leave disabled to keep Autoguidance active in sieges.")]
+        public bool DisableAutoguidanceInSieges { get; set; } = false;
+
+        [SettingPropertyGroup("Autonomous Guidance", GroupOrder = 1)]
+        [SettingPropertyBool(
+            "Direct-Line Siege Target Filter (Experimental)",
+            Order = 5,
+            RequireRestart = false,
+            HintText = "Rejects siege targets whose head is blocked on a direct line from the shooter. This can be too strict around parapets even when Guided Arrow could steer around them, so it is disabled by default. The normal Autoguidance obstacle-routing system remains active without this filter.")]
+        public bool UseDirectLineSiegeTargetFilter { get; set; } = false;
+
+        // Retained only so existing json2 files containing the former setting can deserialize.
         public bool VisibleSiegeTargetsOnly { get; set; } = true;
     }
 }

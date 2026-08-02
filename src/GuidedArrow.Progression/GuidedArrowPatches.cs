@@ -27,15 +27,26 @@ namespace GuidedArrow.Progression
             }
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
-            NativePenetrationLifetimePatch.Install(harmony, behaviorType);
+            ExactEarlyCollisionReactionPatch.Install(harmony, behaviorType);
+            ContinuationCollisionIdentityPatch.Install(harmony, behaviorType);
+            // All penetration corrections remain behavior-scoped. No Bannerlord Mission callback
+            // is patched, preserving native command voices and mission presentation teardown.
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
             AutoguidanceRetargetSafetyPatch.Install(harmony, behaviorType);
+            ContinuationRuntimeStabilityPatch.Install(harmony, behaviorType);
             SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);
             CameraControlPatch.Install(harmony, behaviorType);
 
-            DuplicateVictimContinuationGuardPatch.Install(harmony, behaviorType);
+            // A confirmed-kill callback sourced from OnMissileHitAlreadyDead can precede the
+            // authoritative terminal collision reaction for the same still-live missile. Treating
+            // that callback as a duplicate-continuation marker suppresses legitimate penetration.
             TerminalCollisionFailClosedPatch.Install(harmony, behaviorType);
+            NativeContinuationSourceReleasePatch.Install(harmony, behaviorType);
+            ContinuationReleaseGateRelaxationPatch.Install(harmony, behaviorType);
+            TerminalContinuationLaunchSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
+            // The locked core already drains deferred native work from GuidedArrowBehavior.OnMissionTick.
+            // Moving AddCustomMissile into OnPreDisplayMissionTick can raise AccessViolationException.
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
             ProgressionTerminalXpPatch.Install(harmony, behaviorType);
 
