@@ -257,7 +257,8 @@ namespace GuidedArrow.Progression
                 !RetargetStates.TryGetValue(__instance, out RetargetState state) ||
                 state == null ||
                 !state.Requested ||
-                HasCollisionOwnedWork(__instance))
+                HasCollisionOwnedWork(__instance) ||
+                Count(_pendingContinuationSpawnsField, __instance) > 0)
                 return;
 
             try
@@ -267,9 +268,9 @@ namespace GuidedArrow.Progression
                 _assignAutoguidanceTargetsMethod.Invoke(__instance, new object[] { false });
                 TryLog(__instance, "Autoguidance targets safely reassigned after an agent impact/removal.");
 
-                // A later deferred continuation can still copy the targetless source state. Keep
-                // the request alive until the complete continuation queue has been materialized.
-                state.Requested = Count(_pendingContinuationSpawnsField, __instance) > 0;
+                // Every queued continuation has already been materialized before assignment runs,
+                // so no later spawn can inherit the source missile's cleared target state.
+                state.Requested = false;
             }
             catch
             {
