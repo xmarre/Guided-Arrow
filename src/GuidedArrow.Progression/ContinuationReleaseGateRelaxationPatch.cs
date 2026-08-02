@@ -7,10 +7,11 @@ using HarmonyLib;
 namespace GuidedArrow.Progression
 {
     /// <summary>
-    /// Collapses the legacy emergency continuation quarantine to one completed display boundary.
+    /// Collapses the legacy emergency continuation quarantine to two completed display boundaries.
     /// The protected-memory crash was caused by the terminal launch bridge's native data override;
     /// retaining the old six-boundary/150 ms delay only serializes split volleys and produces visible
-    /// projectile stalls. This patch runs after the native release patch's display counter so the
+    /// projectile stalls. One display boundary was too early for late native collision callbacks;
+    /// this patch runs after the native release patch's display counter so the
     /// following behavior mission tick can expose the continuation without a wall-clock delay.
     /// </summary>
     internal static class ContinuationReleaseGateRelaxationPatch
@@ -132,11 +133,11 @@ namespace GuidedArrow.Progression
                 long completedDisplayTicks = Convert.ToInt64(
                     _completedDisplayTicksField.GetValue(behaviorState));
 
-                // Retain exactly one completed display boundary after the source missile leaves
-                // the mission registry. Once it has completed, satisfy the obsolete six-boundary
-                // and wall-clock portions of the emergency gate before the next OnMissionTick.
+                // Retain two completed display boundaries after the source missile leaves the
+                // mission registry. The one-boundary build exposed replacements while late
+                // Stick/BecomeInvisible callbacks from the source impact were still arriving.
                 if (firstReleasedDisplayTick < 0L ||
-                    completedDisplayTicks <= firstReleasedDisplayTick)
+                    completedDisplayTicks < firstReleasedDisplayTick + 2L)
                     return;
 
                 long acceleratedTick = firstReleasedDisplayTick > long.MaxValue - 16L
