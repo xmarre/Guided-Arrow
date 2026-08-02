@@ -8,10 +8,11 @@ Guided Arrow is a Mount & Blade II: Bannerlord single-player mod that adds manua
 - Bannerlord support: **1.3.15 through 1.4.7**
 - Build target: **.NET Framework 4.7.2**
 - Stable core runtime: verified v1.1.17 `GuidedArrow.dll`
+- Recovered core reference source: `src/GuidedArrow.Core.Recovered`
 - Progression/MCM/UI and stable-core sidecar patches: `src/GuidedArrow.Progression`
 - Runtime module: `module/GuidedArrow`
 
-The supplied v1.1.17 clean archive did not include the original core source. A recovered-core experiment compiled successfully but caused an immediate native mission-start failure. The recovered implementation was removed. Release builds preserve the exact known-working v1.1.17 core binary and fail if its SHA-256 changes.
+The supplied v1.1.17 clean archive did not include the original core authoring project. The repository now includes a complete ILSpy reconstruction of that verified DLL under `src/GuidedArrow.Core.Recovered` so the core implementation is readable and auditable. It is explicitly reference-only: decompilation cannot recover original comments, exact project metadata or guarantee a byte-identical rebuild. A previous rebuilt DLL from recovered source caused an immediate native mission-start failure, so release builds continue to preserve the exact known-working core binary and fail if its SHA-256 changes.
 
 Core corrections are introduced only as narrowly scoped Harmony patches in the maintained sidecar. Synthetic penetration continuations are validated, serialised and held behind a real native-frame boundary, while native/TOR ability projectiles retain their original effects and collision handling. When additive splitting is enabled, Guided Arrow followers are added on top of native volleys rather than replacing them.
 
@@ -20,7 +21,8 @@ v1.3.6 restores mission audio, fixes protected-memory crashes in repeated penetr
 ## Repository layout
 
 ```text
-src/GuidedArrow.Core/            provenance note for the binary-only stable core
+src/GuidedArrow.Core/            provenance and production-core policy
+src/GuidedArrow.Core.Recovered/  complete decompiled core reference source
 src/GuidedArrow.Progression/     mastery, MCM, UI and narrow stable-core patches
 module/GuidedArrow/              installable Bannerlord module tree
 dist/                            clean compiled and source archives
@@ -111,7 +113,7 @@ On Windows with the .NET 8 SDK installed:
 ./build.ps1
 ```
 
-The build script:
+The production build script:
 
 1. verifies the preserved v1.1.17 core DLL against SHA-256 `0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0`;
 2. compiles `GuidedArrow.Progression.dll`;
@@ -119,4 +121,4 @@ The build script:
 4. creates compiled and source ZIPs;
 5. writes SHA-256 checksums.
 
-The build fails immediately if the stable core DLL is missing or changed.
+The recovered core project is intentionally excluded from the production solution and build. The build fails immediately if the stable core DLL is missing or changed.
