@@ -108,7 +108,7 @@ namespace GuidedArrow.Progression
                 IsNativePassThrough(__args[1]))
                 return;
 
-            if (CanUseControlledContinuation(__instance, __args))
+            if (CanUseControlledContinuation(__instance, __args, out string blockReason))
             {
                 TryLog(
                     __instance,
@@ -125,7 +125,8 @@ namespace GuidedArrow.Progression
                 __instance,
                 "Terminal native collision " +
                 ReactionName(__args[1]) +
-                " will terminate without a synthetic penetration continuation.");
+                " will terminate without a synthetic penetration continuation (" +
+                blockReason + ").");
         }
 
         private static Exception ResolveFinalizer(
@@ -146,22 +147,44 @@ namespace GuidedArrow.Progression
 
         private static bool CanUseControlledContinuation(
             object instance,
-            object[] args)
+            object[] args,
+            out string blockReason)
         {
-            if (args == null ||
-                args.Length < 2 ||
-                !IsSupportedTerminalReaction(args[1]))
+            blockReason = "unknown ownership";
+            if (args == null || args.Length < 2)
+            {
+                blockReason = "incomplete collision arguments";
                 return false;
+            }
+
+            if (!IsSupportedTerminalReaction(args[1]))
+            {
+                blockReason = "unsupported terminal reaction";
+                return false;
+            }
 
             int missileIndex;
-            try { missileIndex = (int)args[0]; }
-            catch { return false; }
-
-            if (!ExactEarlyCollisionReactionPatch.TryGetActiveAgentHit(
-                    missileIndex,
-                    out bool hitShield) ||
-                hitShield)
+            try { missileIndex = Convert.ToInt32(args[0]); }
+            catch
+            {
+                blockReason = "invalid missile index";
                 return false;
+            }
+
+            if (!ExactEarlyCollisionReactionPatch.TryGetAgentHit(
+                    instance,
+                    missileIndex,
+                    out bool hitShield))
+            {
+                blockReason = "no exact agent-hit snapshot";
+                return false;
+            }
+
+            if (hitShield)
+            {
+                blockReason = "shield hit";
+                return false;
+            }
 
             object tracked;
             try
@@ -172,14 +195,25 @@ namespace GuidedArrow.Progression
             }
             catch
             {
+                blockReason = "tracked-missile lookup failed";
                 return false;
             }
 
             if (tracked == null)
+            {
+                blockReason = "tracked missile missing";
                 return false;
+            }
 
-            return !NativeVolleyPenetrationIsolationPatch
-                .ShouldBlockSyntheticContinuation(instance, tracked);
+            if (NativeVolleyPenetrationIsolationPatch
+                .ShouldBlockSyntheticContinuation(instance, tracked))
+            {
+                blockReason = "native/TOR volley ownership";
+                return false;
+            }
+
+            blockReason = null;
+            return true;
         }
 
         private static bool IsSupportedTerminalReaction(object reaction)
