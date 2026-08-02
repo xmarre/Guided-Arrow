@@ -111,9 +111,6 @@ namespace GuidedArrow.Progression
             MethodInfo missionTickPostfix = AccessTools.Method(
                 typeof(ContinuationRuntimeStabilityPatch),
                 nameof(MissionTickPostfix));
-            MethodInfo displayPostfix = AccessTools.Method(
-                typeof(ContinuationRuntimeStabilityPatch),
-                nameof(DisplayPostfix));
             MethodInfo clearPrefix = AccessTools.Method(
                 typeof(ContinuationRuntimeStabilityPatch),
                 nameof(ClearPrefix));
@@ -155,27 +152,6 @@ namespace GuidedArrow.Progression
                                 postfix: new HarmonyMethod(missionTickPostfix)
                                 {
                                     priority = Priority.Last
-                                });
-                        }
-                        catch { }
-                    }
-                }
-
-                if (displayPostfix != null)
-                {
-                    foreach (MethodInfo method in behaviorType
-                        .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                        .Where(candidate =>
-                            candidate.Name == "OnPreDisplayMissionTick" &&
-                            !candidate.IsAbstract))
-                    {
-                        try
-                        {
-                            harmony.Patch(
-                                method,
-                                postfix: new HarmonyMethod(displayPostfix)
-                                {
-                                    priority = int.MinValue
                                 });
                         }
                         catch { }
@@ -264,7 +240,7 @@ namespace GuidedArrow.Progression
             if (__instance == null || !__4 || __result == null)
                 return;
 
-            States.GetOrCreateValue(__instance).RetargetRequested = true;
+            AutoguidanceRetargetSafetyPatch.RequestRetarget(__instance);
         }
 
         private static void MissionTickPostfix(object __instance)
@@ -281,43 +257,6 @@ namespace GuidedArrow.Progression
                 TryLog(
                     __instance,
                     "Cleared orphaned collision work so the final deferred penetration continuation can proceed.");
-            }
-        }
-
-        private static void DisplayPostfix(object __instance)
-        {
-            if (__instance == null ||
-                !States.TryGetValue(__instance, out BehaviorState state) ||
-                state == null ||
-                !state.RetargetRequested ||
-                Count(_trackedMissilesField, __instance) <= 0)
-                return;
-
-            try
-            {
-                object active = _isAutoguidanceRuntimeActiveMethod.Invoke(
-                    __instance,
-                    null);
-                if (!(active is bool enabled) || !enabled)
-                {
-                    state.RetargetRequested = false;
-                    return;
-                }
-
-                // Assign every continuation that currently exists. Do not wait for unrelated
-                // continuation requests to drain: a later materialized continuation requests its
-                // own assignment through CreateTrackedPostfix.
-                _assignAutoguidanceTargetsMethod.Invoke(
-                    __instance,
-                    new object[] { false });
-                state.RetargetRequested = false;
-                TryLog(
-                    __instance,
-                    "Autoguidance reassigned after the current penetration continuation materialized.");
-            }
-            catch
-            {
-                state.RetargetRequested = true;
             }
         }
 
