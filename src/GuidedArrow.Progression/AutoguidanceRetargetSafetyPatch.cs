@@ -39,6 +39,7 @@ namespace GuidedArrow.Progression
         private static FieldInfo _pendingNativeMissileRemovalsField;
         private static FieldInfo _pendingContinuationSpawnsField;
         private static MethodInfo _assignAutoguidanceTargetsMethod;
+        private static MethodInfo _isAutoguidanceRuntimeActiveMethod;
         private static MethodInfo _logMethod;
 
         internal static void Install(Harmony harmony, Type behaviorType)
@@ -67,6 +68,10 @@ namespace GuidedArrow.Progression
                 behaviorType,
                 "AssignAutoguidanceTargets",
                 new[] { typeof(bool) });
+            _isAutoguidanceRuntimeActiveMethod = AccessTools.Method(
+                behaviorType,
+                "IsAutoguidanceRuntimeActive",
+                Type.EmptyTypes);
             _logMethod = AccessTools.Method(behaviorType, "Log", new[] { typeof(string) });
 
             if (_trackedMissilesField == null ||
@@ -77,7 +82,8 @@ namespace GuidedArrow.Progression
                 _earlyCollisionReactionsField == null ||
                 _pendingNativeMissileRemovalsField == null ||
                 _pendingContinuationSpawnsField == null ||
-                _assignAutoguidanceTargetsMethod == null)
+                _assignAutoguidanceTargetsMethod == null ||
+                _isAutoguidanceRuntimeActiveMethod == null)
                 return;
 
             MethodInfo impactMethod = AccessTools.Method(
@@ -257,24 +263,30 @@ namespace GuidedArrow.Progression
                 !RetargetStates.TryGetValue(__instance, out RetargetState state) ||
                 state == null ||
                 !state.Requested ||
-                HasCollisionOwnedWork(__instance) ||
-                Count(_pendingContinuationSpawnsField, __instance) > 0)
+                HasCollisionOwnedWork(__instance))
                 return;
 
             try
             {
-                // clearExisting=false preserves every still-valid target and repairs only missiles
-                // whose target was consumed, removed, or copied targetless into a continuation.
-                _assignAutoguidanceTargetsMethod.Invoke(__instance, new object[] { false });
-                TryLog(__instance, "Autoguidance targets safely reassigned after an agent impact/removal.");
+                object active = _isAutoguidanceRuntimeActiveMethod.Invoke(
+                    __instance,
+                    null);
+                if (!(active is bool enabled) || !enabled)
+                {
+                    state.Requested = false;
+                    return;
+                }
 
-                // Every queued continuation has already been materialized before assignment runs,
-                // so no later spawn can inherit the source missile's cleared target state.
+                // clearExisting=false preserves every still-valid target and repairs only missiles
+                // whose target was consumed, removed, or newly materialized targetless. Pending
+                // replacements do not block the current assignment; each later materialization
+                // requests one more pass through this single coordinator.
+                _assignAutoguidanceTargetsMethod.Invoke(__instance, new object[] { false });
+                TryLog(__instance, "Autoguidance targets safely reassigned after impact or continuation materialization.");
                 state.Requested = false;
             }
             catch
             {
-                // Retain the request for a later safe display boundary.
                 state.Requested = true;
             }
         }
@@ -318,7 +330,7 @@ namespace GuidedArrow.Progression
             _guidanceNoProgressElapsedField?.SetValue(tracked, 0f);
         }
 
-        private static void RequestRetarget(object instance)
+        internal static void RequestRetarget(object instance)
         {
             if (instance == null) return;
             RetargetStates.GetOrCreateValue(instance).Requested = true;
