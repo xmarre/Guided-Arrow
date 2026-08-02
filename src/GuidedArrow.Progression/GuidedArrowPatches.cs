@@ -28,6 +28,7 @@ namespace GuidedArrow.Progression
 
             NativeVolleyPenetrationIsolationPatch.Install(harmony, behaviorType);
             ExactEarlyCollisionReactionPatch.Install(harmony, behaviorType);
+            ContinuationCollisionIdentityPatch.Install(harmony, behaviorType);
             // All penetration corrections remain behavior-scoped. No Bannerlord Mission callback
             // is patched, preserving native command voices and mission presentation teardown.
             MissileLifetimeSafetyPatch.Install(harmony, behaviorType);
