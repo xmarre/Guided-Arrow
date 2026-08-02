@@ -40,7 +40,7 @@ jobs:
       - name: Upload compiled and source archives
         uses: actions/upload-artifact@v4
         with:
-          name: GuidedArrow-v1.3.5
+          name: GuidedArrow-v1.3.6
           path: |
             dist/*.zip
             checksums/SHA256SUMS.txt
