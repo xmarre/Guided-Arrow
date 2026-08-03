@@ -2281,7 +2281,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		float num = float.MaxValue;
 		float num2 = Clamp(_pendingAcquireElapsed - seed.CreatedAtAcquireElapsed, 0f, 0.25f);
 		Vec3 val2 = seed.Position + seed.Velocity * num2;
-		float lengthSquared = ((Vec3)(ref seed.Velocity)).LengthSquared;
+		float lengthSquared = seed.Velocity.LengthSquared;
 		float num3 = ((IsFinite(lengthSquared) && lengthSquared > 1E-06f) ? ((float)Math.Sqrt(lengthSquared)) : 0f);
 		float num4 = Clamp(1.25f + num3 * 0.025f, 1.25f, 7f);
 		float num5 = num4 * num4;
@@ -2925,7 +2925,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		right = Cross(flightForward, WorldUp);
 		if (!IsFinite(right) || right.LengthSquared <= 0.0001f)
 		{
-			if (_cameraFrameValid && IsFinite(_cameraFrame.rotation.s) && ((Vec3)(ref _cameraFrame.rotation.s)).LengthSquared > 1E-06f)
+			if (_cameraFrameValid && IsFinite(_cameraFrame.rotation.s) && _cameraFrame.rotation.s.LengthSquared > 1E-06f)
 			{
 				right = _cameraFrame.rotation.s;
 			}
@@ -5764,7 +5764,7 @@ public sealed class GuidedArrowBehavior : MissionView
 					TryGetAutoguidanceRecoveryPlaneNormal(val, val5 - projectilePosition, out recoveryTurnAxis2);
 				}
 				tracked.GuidanceRecoveryTurnAxis = PreferTerrainSafeRecoveryAxis(projectilePosition, val, recoveryTurnAxis2);
-				tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && ((Vec3)(ref tracked.GuidanceRecoveryTurnAxis)).LengthSquared > 0.0001f;
+				tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && tracked.GuidanceRecoveryTurnAxis.LengthSquared > 0.0001f;
 				if (!tracked.GuidanceRecoveryTurnAxisValid)
 				{
 					Vec3 val6 = ((Math.Abs(Dot(val, WorldUp)) < 0.9f) ? WorldUp : Cross(val, new Vec3(1f, 0f, 0f, -1f)));
@@ -5773,7 +5773,7 @@ public sealed class GuidedArrowBehavior : MissionView
 						val6 = Cross(val, new Vec3(0f, 1f, 0f, -1f));
 					}
 					tracked.GuidanceRecoveryTurnAxis = NormalizeSafe(val6, WorldUp);
-					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && ((Vec3)(ref tracked.GuidanceRecoveryTurnAxis)).LengthSquared > 0.0001f;
+					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && tracked.GuidanceRecoveryTurnAxis.LengthSquared > 0.0001f;
 				}
 			}
 			tracked.GuidanceRecoveryActive = true;
@@ -5804,7 +5804,7 @@ public sealed class GuidedArrowBehavior : MissionView
 						planeNormal = ((Math.Abs(Dot(val, WorldUp)) < 0.9f) ? WorldUp : Cross(val, new Vec3(1f, 0f, 0f, -1f)));
 					}
 					tracked.GuidanceRecoveryTurnAxis = NormalizeSafe(PreferTerrainSafeRecoveryAxis(projectilePosition, val, planeNormal), WorldUp);
-					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && ((Vec3)(ref tracked.GuidanceRecoveryTurnAxis)).LengthSquared > 0.0001f;
+					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && tracked.GuidanceRecoveryTurnAxis.LengthSquared > 0.0001f;
 				}
 			}
 			if (!tracked.GuidanceRecoveryTurnAxisValid)
@@ -7221,7 +7221,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		if (IsFinite(val))
 		{
 			float num = (float)Math.Sqrt(val.x * val.x + val.y * val.y);
-			float length = ((Vec3)(ref tracked.LastCommandedVelocity)).Length;
+			float length = tracked.LastCommandedVelocity.Length;
 			float length2 = currentVelocity.Length;
 			float num2 = Math.Max(3f, Math.Abs(val.z) * 0.3f);
 			float num3 = Math.Max(1.5f, Math.Max(length, length2) * 0.06f);
@@ -8496,7 +8496,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 		if (!IsFinite(num) || num <= 1E-06f)
 		{
-			float length = ((Vec3)(ref source.GuidanceLaunchVelocity)).Length;
+			float length = source.GuidanceLaunchVelocity.Length;
 			num = ((IsFinite(length) && length > 1E-06f) ? length : source.SpawnBaseSpeed);
 		}
 		if (!IsFinite(num) || num <= 1E-06f)
@@ -11810,4 +11810,5 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 	}
 }
+
 
