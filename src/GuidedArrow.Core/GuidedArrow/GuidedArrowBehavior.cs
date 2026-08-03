@@ -16,6 +16,8 @@ using TaleWorlds.MountAndBlade.View.Screens;
 using TaleWorlds.ScreenSystem;
 using Missile = TaleWorlds.MountAndBlade.Mission.Missile;
 using MissileCollisionReaction = TaleWorlds.MountAndBlade.Mission.MissileCollisionReaction;
+using OnAgentHealthChangedDelegate = TaleWorlds.MountAndBlade.Agent.OnAgentHealthChangedDelegate;
+using TimeSpeedRequest = TaleWorlds.MountAndBlade.Mission.TimeSpeedRequest;
 
 namespace GuidedArrow;
 
@@ -643,7 +645,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		get
 		{
 			string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-			return Path.Combine(folderPath, "Mount and Blade II Bannerlord", "Configs", "ModLogs", "GuidedArrow.log");
+			return System.IO.Path.Combine(folderPath, "Mount and Blade II Bannerlord", "Configs", "ModLogs", "GuidedArrow.log");
 		}
 	}
 
@@ -7924,7 +7926,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 		_pendingShotPosition = position;
 		_pendingShotVelocity = velocity;
-		_003F fallback;
+		Vec3 fallback;
 		if (shooter == null)
 		{
 			Mission mission = ((MissionBehavior)this).Mission;
@@ -7938,13 +7940,13 @@ public sealed class GuidedArrowBehavior : MissionView
 				Agent mainAgent = mission.MainAgent;
 				obj = ((mainAgent != null) ? new Vec3?(mainAgent.LookDirection) : ((Vec3?)null));
 			}
-			fallback = ((_003F?)obj) ?? new Vec3(0f, 1f, 0f, -1f);
+			fallback = obj ?? new Vec3(0f, 1f, 0f, -1f);
 		}
 		else
 		{
 			fallback = shooter.LookDirection;
 		}
-		_shotDirection = NormalizeSafe(velocity, (Vec3)fallback);
+		_shotDirection = NormalizeSafe(velocity, fallback);
 	}
 
 	private bool IsTrackedMissileIdentityValid(TrackedMissile tracked)
@@ -11637,7 +11639,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			value = Cross(current, WorldUp);
 			if (value.LengthSquared <= 1E-06f)
 			{
-				value._002Ector(1f, 0f, 0f, -1f);
+				value = new Vec3(1f, 0f, 0f, -1f);
 			}
 		}
 		return NormalizeSafe(RotateAroundAxis(current, NormalizeSafe(value, WorldUp), maxAngle), target);
@@ -11804,7 +11806,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		try
 		{
 			string logPath = LogPath;
-			Directory.CreateDirectory(Path.GetDirectoryName(logPath));
+			Directory.CreateDirectory(System.IO.Path.GetDirectoryName(logPath));
 			File.AppendAllText(logPath, DateTime.Now.ToString("O") + " " + message + Environment.NewLine);
 		}
 		catch
@@ -11812,6 +11814,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 	}
 }
+
 
 
 
