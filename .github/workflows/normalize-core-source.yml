@@ -1,0 +1,56 @@
+name: Normalize core source
+
+on:
+  push:
+    branches: [refactor/source-core-build]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/source-core-build
+          fetch-depth: 0
+
+      - name: Normalize invalid decompiler ref casts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'src/GuidedArrow.Core/GuidedArrow/GuidedArrowBehavior.cs',
+            'src/GuidedArrow.Core/GuidedArrow/MissileDamageBridge.cs'
+          )
+          $pattern = '\(\([A-Za-z_][A-Za-z0-9_\.<>]*\)\(ref ([A-Za-z_][A-Za-z0-9_]*)\)\)'
+          $total = 0
+          foreach ($file in $files) {
+            $content = Get-Content $file -Raw
+            $matches = [regex]::Matches($content, $pattern)
+            $total += $matches.Count
+            $normalized = [regex]::Replace($content, $pattern, '$1')
+            if ($normalized -ne $content) {
+              Set-Content $file $normalized -Encoding UTF8
+            }
+          }
+          Write-Host "Normalized $total invalid ref-cast expression(s)."
+          if ($total -eq 0) {
+            Write-Host 'No normalization changes required.'
+          }
+
+      - name: Commit normalized source
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/GuidedArrow.Core/GuidedArrow/GuidedArrowBehavior.cs src/GuidedArrow.Core/GuidedArrow/MissileDamageBridge.cs
+          if (git diff --cached --quiet) {
+            Write-Host 'Core source is already normalized.'
+            exit 0
+          }
+          git commit -m 'Normalize recovered core C# syntax'
+          git push origin HEAD:refactor/source-core-build
