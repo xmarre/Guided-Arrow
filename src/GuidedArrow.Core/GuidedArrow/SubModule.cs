@@ -6,16 +6,16 @@ public sealed class SubModule : MBSubModuleBase
 {
 	protected override void OnSubModuleLoad()
 	{
-		((MBSubModuleBase)this).OnSubModuleLoad();
+		base.OnSubModuleLoad();
 		MissileDamageBridge.Install();
 	}
 
 	public override void OnMissionBehaviorInitialize(Mission mission)
 	{
-		((MBSubModuleBase)this).OnMissionBehaviorInitialize(mission);
+		base.OnMissionBehaviorInitialize(mission);
 		if (mission != null)
 		{
-			mission.AddMissionBehavior((MissionBehavior)(object)new GuidedArrowBehavior());
+			mission.AddMissionBehavior(new GuidedArrowBehavior());
 		}
 	}
 }
