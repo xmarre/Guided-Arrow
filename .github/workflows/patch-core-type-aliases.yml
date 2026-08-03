@@ -1,0 +1,50 @@
+name: Patch core nested type aliases
+
+on:
+  push:
+    branches: [refactor/source-core-build]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/source-core-build
+          fetch-depth: 0
+
+      - name: Restore Mission nested type aliases
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = 'src/GuidedArrow.Core/GuidedArrow/GuidedArrowBehavior.cs'
+          $content = Get-Content $file -Raw
+          $aliases = @"
+          using Missile = TaleWorlds.MountAndBlade.Mission.Missile;
+          using MissileCollisionReaction = TaleWorlds.MountAndBlade.Mission.MissileCollisionReaction;
+          "@
+          if ($content -notmatch 'using Missile = TaleWorlds\.MountAndBlade\.Mission\.Missile;') {
+            $anchor = 'using TaleWorlds.ScreenSystem;'
+            if (-not $content.Contains($anchor)) {
+              throw "Expected using anchor not found."
+            }
+            $content = $content.Replace($anchor, "$anchor`r`n$aliases")
+            Set-Content $file $content -Encoding UTF8
+          }
+
+      - name: Commit aliases
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/GuidedArrow.Core/GuidedArrow/GuidedArrowBehavior.cs
+          if (git diff --cached --quiet) {
+            Write-Host 'Aliases already present.'
+            exit 0
+          }
+          git commit -m 'Restore nested Mission type aliases'
+          git push origin HEAD:refactor/source-core-build
