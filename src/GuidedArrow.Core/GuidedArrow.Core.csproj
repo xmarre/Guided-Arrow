@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>GuidedArrow</AssemblyName>
+    <RootNamespace>GuidedArrow</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <EnableSourceLink>false</EnableSourceLink>
+    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <EmbedUntrackedSources>false</EmbedUntrackedSources>
+    <SourceRevisionId>0000000000000000000000000000000000000000</SourceRevisionId>
+    <RepositoryCommit>0000000000000000000000000000000000000000</RepositoryCommit>
+    <PathMap>$(MSBuildProjectDirectory)=/_/src/GuidedArrow.Core</PathMap>
+    <DebugType>portable</DebugType>
+    <Optimize>true</Optimize>
+    <BannerlordReferenceVersion Condition="'$(BannerlordReferenceVersion)' == ''">1.3.15.110062</BannerlordReferenceVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net472" Version="1.0.3" PrivateAssets="All" />
+    <PackageReference Include="Bannerlord.ReferenceAssemblies.Core" Version="$(BannerlordReferenceVersion)" />
+    <PackageReference Include="Bannerlord.ReferenceAssemblies.Native" Version="$(BannerlordReferenceVersion)" PrivateAssets="All" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.1" PrivateAssets="All" />
+    <PackageReference Include="Bannerlord.MCM" Version="5.12.1" IncludeAssets="compile" />
+    <PackageReference Include="NETStandard.Library" Version="2.0.3" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

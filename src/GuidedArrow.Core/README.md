@@ -1,14 +1,15 @@
-# GuidedArrow.Core provenance
+# GuidedArrow core source
 
-The supplied clean v1.1.17 archive did not contain the original authoring source for `GuidedArrow.dll`.
+This is the maintained C# source project for the `GuidedArrow.dll` gameplay core.
 
-The repository preserves the verified compiled core runtime as the production implementation and now also provides a complete ILSpy reconstruction under [`src/GuidedArrow.Core.Recovered`](../GuidedArrow.Core.Recovered/) for reading, auditing, and future recovery work.
+The original authoring project for the v1.1.17 binary was not available. The implementation was reconstructed from the exact verified production DLL with ILSpy and then placed into a normal SDK-style project so it can be compiled and migrated back into production.
 
-- Stable core version: v1.1.17
-- Stable core SHA-256: `0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0`
-- Runtime target: Mount & Blade II: Bannerlord 1.3.15–1.4.7
-- Recovered source status: reference-only, not authoritative original source
+- Source binary SHA-256: `0f84dcfe256b4c0235707a463e2fadb6ca6b05027d7bafb5e7313965d3d98af0`
+- Reconstructed with ILSpy 10.1.1.8388
+- Assembly identity retained: `GuidedArrow`, version `1.1.17.0`
+- Build status: compiled on every normal build and in CI
+- Package status: emitted as a separate source-core candidate until runtime acceptance is complete
 
-Decompilation cannot restore comments, exact original project metadata, or guarantee a byte-identical rebuild. A previous rebuilt DLL from recovered source compiled successfully but caused an immediate native crash when entering a battle. `build.ps1` therefore compiles only the progression/UI sidecar and fails immediately if the preserved core DLL is missing or its hash changes.
+The normal release package still uses the verified binary core because an earlier reconstructed build crashed at mission start. That is a temporary migration gate, not the intended permanent architecture. The source-built candidate must pass mission start, battle audio, manual guidance, Autoguidance, split volleys, finite and infinite penetration, camera handoff, siege targeting, mission exit and save compatibility before it replaces the binary in the stable package.
 
-Production core changes still require authentic original source or narrowly scoped patches around the verified binary with separate in-game validation.
+See [`CORE_SOURCE_MIGRATION.md`](../../CORE_SOURCE_MIGRATION.md) for the exact promotion process.

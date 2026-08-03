@@ -2,6 +2,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuidedArrow.Core", "src\GuidedArrow.Core\GuidedArrow.Core.csproj", "{C65D75EA-ABF2-4A15-A413-8AC470727E51}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuidedArrow.Progression", "src\GuidedArrow.Progression\GuidedArrow.Progression.csproj", "{8A6E9AC7-1B63-4A08-9266-09CF92B8B6AD}"
 EndProject
 Global
@@ -10,6 +12,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C65D75EA-ABF2-4A15-A413-8AC470727E51}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C65D75EA-ABF2-4A15-A413-8AC470727E51}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C65D75EA-ABF2-4A15-A413-8AC470727E51}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C65D75EA-ABF2-4A15-A413-8AC470727E51}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8A6E9AC7-1B63-4A08-9266-09CF92B8B6AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8A6E9AC7-1B63-4A08-9266-09CF92B8B6AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8A6E9AC7-1B63-4A08-9266-09CF92B8B6AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
