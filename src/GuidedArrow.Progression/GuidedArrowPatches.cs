@@ -36,6 +36,7 @@ namespace GuidedArrow.Progression
             ContinuationRuntimeStabilityPatch.Install(harmony, behaviorType);
             SiegeAutoguidanceVisibilityPatch.Install(harmony, behaviorType);
             CameraControlPatch.Install(harmony, behaviorType);
+            PostKillDeadFlightCameraPatch.Install(harmony, behaviorType);
 
             // A confirmed-kill callback sourced from OnMissileHitAlreadyDead can precede the
             // authoritative terminal collision reaction for the same still-live missile. Treating
