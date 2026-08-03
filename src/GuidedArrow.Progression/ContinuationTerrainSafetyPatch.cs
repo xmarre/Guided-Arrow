@@ -268,7 +268,7 @@ namespace GuidedArrow.Progression
 
             try
             {
-                groundHeight = mission.Scene.GetGroundHeightAtPosition(new Vec2(position.x, position.y));
+                groundHeight = mission.Scene.GetGroundHeightAtPosition(position);
                 return IsFinite(groundHeight) &&
                        Math.Abs((double)groundHeight - position.z) < 10000.0;
             }
