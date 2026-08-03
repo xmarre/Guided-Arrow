@@ -14,6 +14,10 @@ using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.View.MissionViews;
 using TaleWorlds.MountAndBlade.View.Screens;
 using TaleWorlds.ScreenSystem;
+using Missile = TaleWorlds.MountAndBlade.Mission.Missile;
+using MissileCollisionReaction = TaleWorlds.MountAndBlade.Mission.MissileCollisionReaction;
+using OnAgentHealthChangedDelegate = TaleWorlds.MountAndBlade.Agent.OnAgentHealthChangedDelegate;
+using TimeSpeedRequest = TaleWorlds.MountAndBlade.Mission.TimeSpeedRequest;
 
 namespace GuidedArrow;
 
@@ -641,7 +645,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		get
 		{
 			string folderPath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-			return Path.Combine(folderPath, "Mount and Blade II Bannerlord", "Configs", "ModLogs", "GuidedArrow.log");
+			return System.IO.Path.Combine(folderPath, "Mount and Blade II Bannerlord", "Configs", "ModLogs", "GuidedArrow.log");
 		}
 	}
 
@@ -807,7 +811,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		try
 		{
 			Vec3 val = position - shooter.Position;
-			float lengthSquared = ((Vec3)(ref val)).LengthSquared;
+			float lengthSquared = val.LengthSquared;
 			return IsFinite(lengthSquared) && lengthSquared <= 36f;
 		}
 		catch
@@ -842,7 +846,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			try
 			{
 				Vec3 val = ((MBMissile)trackedMissile.Missile).GetPosition() - _pendingShotPosition;
-				float lengthSquared = ((Vec3)(ref val)).LengthSquared;
+				float lengthSquared = val.LengthSquared;
 				float num2 = 144f;
 				if (IsFinite(lengthSquared) && lengthSquared > num2)
 				{
@@ -949,7 +953,7 @@ public sealed class GuidedArrowBehavior : MissionView
 					if (item != null && ((MBMissile)item).Index == queuedAlliedShot.ForcedIndex && item.ShooterAgent == queuedAlliedShot.Shooter && IsArrowOrBolt(item))
 					{
 						Vec3 velocity = ((MBMissile)item).GetVelocity();
-						if (IsFinite(velocity) && !(((Vec3)(ref velocity)).LengthSquared <= 0.0625f))
+						if (IsFinite(velocity) && !(velocity.LengthSquared <= 0.0625f))
 						{
 							val = item;
 							break;
@@ -1001,27 +1005,27 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_007c: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0081: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0086: Unknown result type (might be due to invalid IL or missing references)
-		if (_state != State.Guiding || isCanceled || attacker == null || ((MissionBehavior)this).Mission == null || attacker != _activeShotShooter || !((AttackCollisionData)(ref collisionData)).IsMissile)
+		if (_state != State.Guiding || isCanceled || attacker == null || ((MissionBehavior)this).Mission == null || attacker != _activeShotShooter || !collisionData.IsMissile)
 		{
 			return;
 		}
 		CloseSplitSiblingAcquisition("FirstMissileImpact");
 		_standaloneSplitSpawned = true;
-		_impactPosition = ((AttackCollisionData)(ref collisionData)).CollisionGlobalPosition;
-		if (IsFinite(((AttackCollisionData)(ref collisionData)).MissileVelocity))
+		_impactPosition = collisionData.CollisionGlobalPosition;
+		if (IsFinite(collisionData.MissileVelocity))
 		{
-			Vec3 missileVelocity = ((AttackCollisionData)(ref collisionData)).MissileVelocity;
-			if (((Vec3)(ref missileVelocity)).LengthSquared > 1E-06f)
+			Vec3 missileVelocity = collisionData.MissileVelocity;
+			if (missileVelocity.LengthSquared > 1E-06f)
 			{
-				_impactDirection = NormalizeSafe(((AttackCollisionData)(ref collisionData)).MissileVelocity, _lastMissileDirection);
+				_impactDirection = NormalizeSafe(collisionData.MissileVelocity, _lastMissileDirection);
 				goto IL_0099;
 			}
 		}
 		_impactDirection = _lastMissileDirection;
 		goto IL_0099;
 		IL_0099:
-		_cinematicCollisionBoneIndex = ((victim != null) ? ((AttackCollisionData)(ref collisionData)).CollisionBoneIndex : (-1));
-		int affectorWeaponSlotOrMissileIndex = ((AttackCollisionData)(ref collisionData)).AffectorWeaponSlotOrMissileIndex;
+		_cinematicCollisionBoneIndex = ((victim != null) ? collisionData.CollisionBoneIndex : (-1));
+		int affectorWeaponSlotOrMissileIndex = collisionData.AffectorWeaponSlotOrMissileIndex;
 		TrackedMissile trackedMissile = FindTrackedMissile(affectorWeaponSlotOrMissileIndex);
 		GameEntity val = null;
 		if (trackedMissile != null)
@@ -1040,7 +1044,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			trackedMissile.ParticleDiscoveryLockedAfterImpact = true;
 			AbandonNativePresentationHandlesAfterImpact(trackedMissile);
 			trackedMissile.LastCommandedVelocityValid = false;
-			QueuePendingCollisionContext(affectorWeaponSlotOrMissileIndex, attacker, victim, _impactPosition, ((AttackCollisionData)(ref collisionData)).MissileVelocity, _impactDirection);
+			QueuePendingCollisionContext(affectorWeaponSlotOrMissileIndex, attacker, victim, _impactPosition, collisionData.MissileVelocity, _impactDirection);
 			if (affectorWeaponSlotOrMissileIndex == _cameraMissileIndex && !TryPromoteCameraOwnerWithinSwarm(affectorWeaponSlotOrMissileIndex))
 			{
 				SuspendProjectileCameraForCollisionReaction(affectorWeaponSlotOrMissileIndex);
@@ -1382,7 +1386,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			{
 				val = ((MBMissile)trackedMissile2.Missile).GetPosition();
 				val2 = ((MBMissile)trackedMissile2.Missile).GetVelocity();
-				float lengthSquared = ((Vec3)(ref val2)).LengthSquared;
+				float lengthSquared = val2.LengthSquared;
 				if (IsFinite(val) && IsFinite(val2) && IsFinite(lengthSquared) && lengthSquared > 1E-06f)
 				{
 					float num2 = (float)Math.Sqrt(lengthSquared);
@@ -1433,7 +1437,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				{
 					Vec3 position = ((MBMissile)trackedMissile3.Missile).GetPosition();
 					Vec3 velocity = ((MBMissile)trackedMissile3.Missile).GetVelocity();
-					float lengthSquared2 = ((Vec3)(ref velocity)).LengthSquared;
+					float lengthSquared2 = velocity.LengthSquared;
 					if (IsFinite(position) && IsFinite(velocity) && IsFinite(lengthSquared2) && !(lengthSquared2 <= 1E-06f))
 					{
 						float num5 = (float)Math.Sqrt(lengthSquared2);
@@ -1468,7 +1472,7 @@ public sealed class GuidedArrowBehavior : MissionView
 									float num7 = Clamp(GlobalSettings<Settings>.Instance?.SplitArrowFormationResponse ?? 4f, 0.5f, 20f);
 									Vec3 val8 = val + offset;
 									Vec3 val9 = val8 - position;
-									float lengthSquared3 = ((Vec3)(ref val9)).LengthSquared;
+									float lengthSquared3 = val9.LengthSquared;
 									float num8 = ((IsFinite(lengthSquared3) && lengthSquared3 > 1E-06f) ? ((float)Math.Sqrt(lengthSquared3)) : 0f);
 									Vec3 val10 = val2 + relativeVelocity;
 									if (trackedMissile3.LastFormationTargetValid && dt > 1E-06f)
@@ -1483,9 +1487,9 @@ public sealed class GuidedArrowBehavior : MissionView
 									trackedMissile3.LastFormationTargetValid = true;
 									Vec3 value = val10 + val9 * num7;
 									Vec3 val12 = NormalizeSafe(value, val6);
-									float lengthSquared4 = ((Vec3)(ref value)).LengthSquared;
+									float lengthSquared4 = value.LengthSquared;
 									float v = ((IsFinite(lengthSquared4) && lengthSquared4 > 1E-06f) ? ((float)Math.Sqrt(lengthSquared4)) : num5);
-									float lengthSquared5 = ((Vec3)(ref val2)).LengthSquared;
+									float lengthSquared5 = val2.LengthSquared;
 									float num9 = ((IsFinite(lengthSquared5) && lengthSquared5 > 1E-06f) ? ((float)Math.Sqrt(lengthSquared5)) : num5);
 									float num10 = Clamp(GlobalSettings<Settings>.Instance?.SplitArrowFormationCatchUpSpeedLimit ?? 3f, 1f, 5f);
 									float num11 = num8 / Math.Max(0.2f, val7);
@@ -1663,7 +1667,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			{
 				identityEntity = val.Entity;
 				weapon = val.Weapon;
-				identityItem = ((MissionWeapon)(ref weapon)).Item;
+				identityItem = weapon.Item;
 			}
 			catch
 			{
@@ -1688,11 +1692,11 @@ public sealed class GuidedArrowBehavior : MissionView
 				SpawnWeapon = val.Weapon
 			};
 			weapon = val.Weapon;
-			obj3.SpawnWeaponValid = ((MissionWeapon)(ref weapon)).Item != null;
+			obj3.SpawnWeaponValid = weapon.Item != null;
 			obj3.ResolvedLaunchData = data;
 			obj3.SpawnOrientation = _pendingShotOrientation;
 			obj3.SpawnOrientationValid = true;
-			obj3.SpawnBaseSpeed = ((data != null && IsFinite(data.BaseSpeed)) ? data.BaseSpeed : (IsFinite(((Vec3)(ref velocity)).Length) ? ((Vec3)(ref velocity)).Length : 0f));
+			obj3.SpawnBaseSpeed = ((data != null && IsFinite(data.BaseSpeed)) ? data.BaseSpeed : (IsFinite(velocity.Length) ? velocity.Length : 0f));
 			obj3.SpawnHasRigidBody = _pendingShotHasRigidBody;
 			obj3.PenetrationsUsed = 0;
 			obj3.SyntheticProjectile = false;
@@ -1796,7 +1800,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		catch
 		{
 		}
-		float lengthSquared = ((Vec3)(ref _pendingShotVelocity)).LengthSquared;
+		float lengthSquared = _pendingShotVelocity.LengthSquared;
 		float num = ((IsFinite(lengthSquared) && lengthSquared > 1E-06f) ? ((float)Math.Sqrt(lengthSquared)) : 0f);
 		float num2 = Clamp(4f + num * 0.05f, 5f, 16f);
 		float num3 = num2 * num2;
@@ -1833,7 +1837,7 @@ public sealed class GuidedArrowBehavior : MissionView
 					continue;
 				}
 				Vec3 val4 = position2 - val2;
-				float lengthSquared2 = ((Vec3)(ref val4)).LengthSquared;
+				float lengthSquared2 = val4.LengthSquared;
 				if (!IsFinite(lengthSquared2) || lengthSquared2 > num3)
 				{
 					continue;
@@ -1843,7 +1847,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				{
 					continue;
 				}
-				float lengthSquared3 = ((Vec3)(ref velocity)).LengthSquared;
+				float lengthSquared3 = velocity.LengthSquared;
 				if (num > 1E-06f && IsFinite(lengthSquared3) && lengthSquared3 > 1E-06f)
 				{
 					float num5 = (float)Math.Sqrt(lengthSquared3) / num;
@@ -1859,7 +1863,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				{
 					identityEntity = item.Entity;
 					weapon = item.Weapon;
-					identityItem = ((MissionWeapon)(ref weapon)).Item;
+					identityItem = weapon.Item;
 				}
 				catch
 				{
@@ -1884,11 +1888,11 @@ public sealed class GuidedArrowBehavior : MissionView
 					SpawnWeapon = item.Weapon
 				};
 				weapon = item.Weapon;
-				obj4.SpawnWeaponValid = ((MissionWeapon)(ref weapon)).Item != null;
+				obj4.SpawnWeaponValid = weapon.Item != null;
 				obj4.ResolvedLaunchData = data;
 				obj4.SpawnOrientation = _pendingShotOrientation;
 				obj4.SpawnOrientationValid = true;
-				obj4.SpawnBaseSpeed = ((data != null && IsFinite(data.BaseSpeed)) ? data.BaseSpeed : (IsFinite(((Vec3)(ref velocity)).Length) ? ((Vec3)(ref velocity)).Length : 0f));
+				obj4.SpawnBaseSpeed = ((data != null && IsFinite(data.BaseSpeed)) ? data.BaseSpeed : (IsFinite(velocity.Length) ? velocity.Length : 0f));
 				obj4.SpawnHasRigidBody = _pendingShotHasRigidBody;
 				obj4.PenetrationsUsed = 0;
 				obj4.SyntheticProjectile = false;
@@ -2035,7 +2039,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		{
 			return;
 		}
-		float length = ((Vec3)(ref velocity)).Length;
+		float length = velocity.Length;
 		if (!IsFinite(position) || !IsFinite(velocity) || !IsFinite(length) || length <= 1E-06f)
 		{
 			return;
@@ -2043,7 +2047,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		_standaloneSplitSpawned = true;
 		Vec3 val = velocity / length;
 		Vec3 val2 = Cross(val, WorldUp);
-		if (!IsFinite(val2) || ((Vec3)(ref val2)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val2) || val2.LengthSquared <= 0.0001f)
 		{
 			val2 = Cross(val, new Vec3(1f, 0f, 0f, -1f));
 		}
@@ -2159,10 +2163,10 @@ public sealed class GuidedArrowBehavior : MissionView
 		{
 			identityEntity = missile.Entity;
 			MissionWeapon weapon = missile.Weapon;
-			identityItem = ((MissionWeapon)(ref weapon)).Item;
+			identityItem = weapon.Item;
 			spawnWeapon = missile.Weapon;
 			weapon = missile.Weapon;
-			spawnWeaponValid = ((MissionWeapon)(ref weapon)).Item != null;
+			spawnWeaponValid = weapon.Item != null;
 		}
 		catch
 		{
@@ -2281,7 +2285,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		float num = float.MaxValue;
 		float num2 = Clamp(_pendingAcquireElapsed - seed.CreatedAtAcquireElapsed, 0f, 0.25f);
 		Vec3 val2 = seed.Position + seed.Velocity * num2;
-		float lengthSquared = ((Vec3)(ref seed.Velocity)).LengthSquared;
+		float lengthSquared = seed.Velocity.LengthSquared;
 		float num3 = ((IsFinite(lengthSquared) && lengthSquared > 1E-06f) ? ((float)Math.Sqrt(lengthSquared)) : 0f);
 		float num4 = Clamp(1.25f + num3 * 0.025f, 1.25f, 7f);
 		float num5 = num4 * num4;
@@ -2326,7 +2330,7 @@ public sealed class GuidedArrowBehavior : MissionView
 						continue;
 					}
 					Vec3 val3 = position - val2;
-					float lengthSquared2 = ((Vec3)(ref val3)).LengthSquared;
+					float lengthSquared2 = val3.LengthSquared;
 					if (!IsFinite(lengthSquared2) || lengthSquared2 > num5)
 					{
 						continue;
@@ -2338,7 +2342,7 @@ public sealed class GuidedArrowBehavior : MissionView
 					{
 						continue;
 					}
-					float lengthSquared3 = ((Vec3)(ref velocity)).LengthSquared;
+					float lengthSquared3 = velocity.LengthSquared;
 					if (num3 > 1E-06f && IsFinite(lengthSquared3) && lengthSquared3 > 1E-06f)
 					{
 						float num7 = (float)Math.Sqrt(lengthSquared3) / num3;
@@ -2498,7 +2502,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		{
 			position = ((MBMissile)tracked.Missile).GetPosition();
 			velocity = ((MBMissile)tracked.Missile).GetVelocity();
-			float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+			float lengthSquared = velocity.LengthSquared;
 			return IsFinite(position) && IsFinite(velocity) && IsFinite(lengthSquared) && lengthSquared > 0.0625f;
 		}
 		catch
@@ -2524,7 +2528,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			try
 			{
 				Vec3 velocity = ((MBMissile)trackedMissile2.Missile).GetVelocity();
-				float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+				float lengthSquared = velocity.LengthSquared;
 				if (IsFinite(velocity) && IsFinite(lengthSquared) && !(lengthSquared <= 0.0625f) && (trackedMissile == null || lengthSquared > num))
 				{
 					trackedMissile = trackedMissile2;
@@ -2639,7 +2643,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (TryReadMovingMissile(trackedMissile, out var position2, out var velocity2))
 			{
 				Vec3 val4 = position2 - position;
-				float num4 = Math.Max(0f, ((Vec3)(ref val4)).LengthSquared);
+				float num4 = Math.Max(0f, val4.LengthSquared);
 				float num5 = ((num2 > 1E-06f) ? (num4 / num2) : 0f);
 				float num6 = 1f / (1f + num5 * num5);
 				float num7 = ((trackedMissile != null && trackedMissile.Index == _cameraMissileIndex) ? 3f : 1f);
@@ -2667,14 +2671,14 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (TryReadMovingMissile(trackedMissile2, out var position3, out var _))
 			{
 				Vec3 val6 = position3 - position;
-				float num13 = Math.Max(0f, ((Vec3)(ref val6)).LengthSquared);
+				float num13 = Math.Max(0f, val6.LengthSquared);
 				float num14 = ((num2 > 1E-06f) ? (num13 / num2) : 0f);
 				float num15 = 1f / (1f + num14 * num14);
 				float num16 = ((trackedMissile2 != null && trackedMissile2.Index == _cameraMissileIndex) ? 3f : 1f);
 				float num17 = Math.Max(0.02f, num15 * num16);
 				Vec3 a = position3 - centroid;
 				float num18 = Dot(a, forward);
-				float num19 = Math.Max(0f, ((Vec3)(ref a)).LengthSquared - num18 * num18);
+				float num19 = Math.Max(0f, a.LengthSquared - num18 * num18);
 				num10 += num19 * num17;
 				num11 += num18 * num18 * num17;
 				num12 += num17;
@@ -2923,9 +2927,9 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0098: Unknown result type (might be due to invalid IL or missing references)
 		flightForward = NormalizeSafe(flightForward, new Vec3(0f, 1f, 0f, -1f));
 		right = Cross(flightForward, WorldUp);
-		if (!IsFinite(right) || ((Vec3)(ref right)).LengthSquared <= 0.0001f)
+		if (!IsFinite(right) || right.LengthSquared <= 0.0001f)
 		{
-			if (_cameraFrameValid && IsFinite(_cameraFrame.rotation.s) && ((Vec3)(ref _cameraFrame.rotation.s)).LengthSquared > 1E-06f)
+			if (_cameraFrameValid && IsFinite(_cameraFrame.rotation.s) && _cameraFrame.rotation.s.LengthSquared > 1E-06f)
 			{
 				right = _cameraFrame.rotation.s;
 			}
@@ -3742,7 +3746,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			try
 			{
 				Vec3 val4 = ((MBMissile)_trackedMissiles[i].Missile).GetPosition() - val3;
-				float length = ((Vec3)(ref val4)).Length;
+				float length = val4.Length;
 				if (IsFinite(length) && length > num)
 				{
 					num = length;
@@ -3835,7 +3839,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		{
 			return -1;
 		}
-		float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+		float lengthSquared = velocity.LengthSquared;
 		if (!IsFinite(position) || !IsFinite(velocity) || !IsFinite(lengthSquared) || lengthSquared <= 1E-06f)
 		{
 			return -1;
@@ -3867,7 +3871,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			}
 			Vec3 val3 = _autoguidanceCandidateHeads[i];
 			Vec3 val4 = val3 - position;
-			float lengthSquared2 = ((Vec3)(ref val4)).LengthSquared;
+			float lengthSquared2 = val4.LengthSquared;
 			if (!IsFinite(val4) || !IsFinite(lengthSquared2) || lengthSquared2 <= 1E-06f)
 			{
 				continue;
@@ -3911,7 +3915,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			}
 			Vec3 recoveryTurnAxis;
 			float num16 = EstimateAutoguidanceTravelDistance(position, val, val3, num4, autoguidanceReachabilityReserve, out recoveryTurnAxis);
-			if (IsFinite(recoveryTurnAxis) && ((Vec3)(ref recoveryTurnAxis)).LengthSquared > 0.0001f && IsFinite(num16))
+			if (IsFinite(recoveryTurnAxis) && recoveryTurnAxis.LengthSquared > 0.0001f && IsFinite(num16))
 			{
 				float num17 = num16;
 				if (num2 == 1)
@@ -3992,7 +3996,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		{
 			return false;
 		}
-		float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+		float lengthSquared = velocity.LengthSquared;
 		if (!IsFinite(position) || !IsFinite(velocity) || !IsFinite(lengthSquared) || lengthSquared <= 1E-06f)
 		{
 			return false;
@@ -4103,7 +4107,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0036: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0037: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = head - position;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length) || length <= 1E-06f)
 		{
 			return float.PositiveInfinity;
@@ -4160,7 +4164,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			Agent candidate = _autoguidanceRankCandidates[num5];
 			Vec3 val = _autoguidanceCandidateHeads[num5];
 			Vec3 val2 = val - position;
-			float length = ((Vec3)(ref val2)).Length;
+			float length = val2.Length;
 			if (!IsFinite(val2) || !IsFinite(length) || length <= 1E-06f)
 			{
 				continue;
@@ -4265,7 +4269,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_00c8: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = _autoguidanceCandidateHeads[toIndex];
 		Vec3 val2 = val - fromHead;
-		float length = ((Vec3)(ref val2)).Length;
+		float length = val2.Length;
 		safe = false;
 		if (!IsFinite(val2) || !IsFinite(length) || length <= 1.5f)
 		{
@@ -4308,7 +4312,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			return value;
 		}
 		Vec3 val = toHead - fromHead;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length) || length <= 1.5f)
 		{
 			return 1000f;
@@ -4451,7 +4455,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		Vec3 agentVisualPositionSafe = GetAgentVisualPositionSafe(candidate, targetHead - WorldUp * 0.95f);
 		Vec3 val = targetHead - projectilePosition;
 		val.z = 0f;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.05f)
 		{
 			resolvedProfile = AutoguidanceFlightProfile.DirectHunter;
@@ -4519,7 +4523,7 @@ public sealed class GuidedArrowBehavior : MissionView
 					Vec3 val5 = targetHead - val4;
 					Vec3 val6 = val5;
 					val6.z = 0f;
-					float length2 = ((Vec3)(ref val6)).Length;
+					float length2 = val6.Length;
 					if (IsFinite(length2) && length2 > 0.05f)
 					{
 						num3 = (float)Math.Atan2(val5.z, length2);
@@ -4621,7 +4625,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		Vec3 val = targetHead - projectilePosition;
 		Vec3 val2 = val;
 		val2.z = 0f;
-		float length = ((Vec3)(ref val2)).Length;
+		float length = val2.Length;
 		if (!IsFinite(length) || length <= Math.Max(9f, effectiveTurnRadius * 0.4f))
 		{
 			return AutoguidanceFlightProfile.DirectHunter;
@@ -4705,7 +4709,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0034: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0035: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = waypoint - projectilePosition;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length))
 		{
 			return false;
@@ -4799,21 +4803,21 @@ public sealed class GuidedArrowBehavior : MissionView
 		if (Clamp(Dot(currentDirection, targetDirection), -1f, 1f) < -0.82f)
 		{
 			Vec3 val = WorldUp - currentDirection * Dot(WorldUp, currentDirection);
-			if (IsFinite(val) && ((Vec3)(ref val)).LengthSquared > 0.0001f)
+			if (IsFinite(val) && val.LengthSquared > 0.0001f)
 			{
 				planeNormal = NormalizeSafe(val, WorldUp);
 				return true;
 			}
 		}
 		planeNormal = Cross(currentDirection, targetDirection);
-		if (!IsFinite(planeNormal) || ((Vec3)(ref planeNormal)).LengthSquared <= 0.0001f)
+		if (!IsFinite(planeNormal) || planeNormal.LengthSquared <= 0.0001f)
 		{
 			planeNormal = Cross(currentDirection, new Vec3(1f, 0f, 0f, -1f));
-			if (!IsFinite(planeNormal) || ((Vec3)(ref planeNormal)).LengthSquared <= 0.0001f)
+			if (!IsFinite(planeNormal) || planeNormal.LengthSquared <= 0.0001f)
 			{
 				planeNormal = Cross(currentDirection, new Vec3(0f, 1f, 0f, -1f));
 			}
-			if (!IsFinite(planeNormal) || ((Vec3)(ref planeNormal)).LengthSquared <= 0.0001f)
+			if (!IsFinite(planeNormal) || planeNormal.LengthSquared <= 0.0001f)
 			{
 				planeNormal = new Vec3(1f, 0f, 0f, -1f);
 			}
@@ -4897,7 +4901,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		Vec3 val2 = projectilePosition - val * num;
 		Vec3 val3 = target - val2;
 		Vec3 val4 = val3 - turnAxis * Dot(val3, turnAxis);
-		float length = ((Vec3)(ref val4)).Length;
+		float length = val4.Length;
 		if (!IsFinite(val4) || !IsFinite(length) || length <= num + 0.001f)
 		{
 			return float.PositiveInfinity;
@@ -4915,7 +4919,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (!(Dot(a, b) <= 0f))
 			{
 				float num6 = NormalizePositiveRadians(num5);
-				float length2 = ((Vec3)(ref b)).Length;
+				float length2 = b.Length;
 				float num7 = num6 * num + length2;
 				if (IsFinite(num7) && num7 < num4)
 				{
@@ -5003,7 +5007,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_01a8: Unknown result type (might be due to invalid IL or missing references)
 		recoveryTurnAxis = Vec3.Zero;
 		Vec3 val = target - projectilePosition;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length))
 		{
 			return float.PositiveInfinity;
@@ -5049,9 +5053,9 @@ public sealed class GuidedArrowBehavior : MissionView
 			Vec3 val5 = projectilePosition - val3 * Math.Max(0.1f, effectiveTurnRadius);
 			Vec3 val6 = projectilePosition - val4 * Math.Max(0.1f, effectiveTurnRadius);
 			Vec3 val7 = target - val5;
-			float lengthSquared = ((Vec3)(ref val7)).LengthSquared;
+			float lengthSquared = val7.LengthSquared;
 			val7 = target - val6;
-			float lengthSquared2 = ((Vec3)(ref val7)).LengthSquared;
+			float lengthSquared2 = val7.LengthSquared;
 			recoveryTurnAxis = ((lengthSquared >= lengthSquared2) ? planeNormal : (-planeNormal));
 			num3 = length + Math.Max(0.1f, effectiveTurnRadius) * (float)Math.PI;
 		}
@@ -5129,7 +5133,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0032: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0033: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedHead - projectilePosition;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length) || length <= 0.35f)
 		{
 			return true;
@@ -5409,7 +5413,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			return false;
 		}
 		Vec3 val = position - missilePosition;
-		float lengthSquared = ((Vec3)(ref val)).LengthSquared;
+		float lengthSquared = val.LengthSquared;
 		float num2 = Clamp(GlobalSettings<Settings>.Instance?.AutoguidanceFormationBreakDistance ?? 18f, 2f, 80f);
 		if (IsFinite(lengthSquared) && lengthSquared <= num2 * num2)
 		{
@@ -5695,7 +5699,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 		tracked.GuidanceLastRawHead = position;
 		tracked.GuidanceLastRawHeadValid = true;
-		float lengthSquared = ((Vec3)(ref projectileVelocity)).LengthSquared;
+		float lengthSquared = projectileVelocity.LengthSquared;
 		if (!IsFinite(lengthSquared) || lengthSquared <= 1E-06f)
 		{
 			return false;
@@ -5708,7 +5712,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		Vec3 val2 = (tracked.GuidanceTargetVelocityValid ? tracked.GuidanceTargetVelocity : Vec3.Zero);
 		float gravityZ = (IsFinite(tracked.EstimatedGravityZ) ? Clamp(tracked.EstimatedGravityZ, -40f, 5f) : (-9.81f));
 		Vec3 val3 = tracked.GuidanceSmoothedHead - projectilePosition;
-		float num5 = Clamp(((Vec3)(ref val3)).Length / Math.Max(1f, num2), 0.01f, 6f);
+		float num5 = Clamp(val3.Length / Math.Max(1f, num2), 0.01f, 6f);
 		Vec3 val4 = tracked.GuidanceSmoothedHead;
 		for (int i = 0; i < 4; i++)
 		{
@@ -5718,13 +5722,13 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (!IsFinite(num6))
 			{
 				val3 = val4 - projectilePosition;
-				num6 = ((Vec3)(ref val3)).Length;
+				num6 = val3.Length;
 			}
 			num5 = Clamp(num6 / Math.Max(1f, num2), 0.01f, 6f);
 		}
 		Vec3 val5 = val4;
 		val3 = val5 - projectilePosition;
-		float length = ((Vec3)(ref val3)).Length;
+		float length = val3.Length;
 		if (IsFinite(length))
 		{
 			if (!tracked.GuidanceLastTargetDistanceValid || length + 0.18f < tracked.GuidanceLastTargetDistance)
@@ -5759,21 +5763,21 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (num8 || !tracked.GuidanceRecoveryTurnAxisValid)
 			{
 				EstimateAutoguidanceTravelDistance(projectilePosition, val, val5, num4, num7, out var recoveryTurnAxis2);
-				if (!IsFinite(recoveryTurnAxis2) || ((Vec3)(ref recoveryTurnAxis2)).LengthSquared <= 0.0001f)
+				if (!IsFinite(recoveryTurnAxis2) || recoveryTurnAxis2.LengthSquared <= 0.0001f)
 				{
 					TryGetAutoguidanceRecoveryPlaneNormal(val, val5 - projectilePosition, out recoveryTurnAxis2);
 				}
 				tracked.GuidanceRecoveryTurnAxis = PreferTerrainSafeRecoveryAxis(projectilePosition, val, recoveryTurnAxis2);
-				tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && ((Vec3)(ref tracked.GuidanceRecoveryTurnAxis)).LengthSquared > 0.0001f;
+				tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && tracked.GuidanceRecoveryTurnAxis.LengthSquared > 0.0001f;
 				if (!tracked.GuidanceRecoveryTurnAxisValid)
 				{
 					Vec3 val6 = ((Math.Abs(Dot(val, WorldUp)) < 0.9f) ? WorldUp : Cross(val, new Vec3(1f, 0f, 0f, -1f)));
-					if (!IsFinite(val6) || ((Vec3)(ref val6)).LengthSquared <= 0.0001f)
+					if (!IsFinite(val6) || val6.LengthSquared <= 0.0001f)
 					{
 						val6 = Cross(val, new Vec3(0f, 1f, 0f, -1f));
 					}
 					tracked.GuidanceRecoveryTurnAxis = NormalizeSafe(val6, WorldUp);
-					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && ((Vec3)(ref tracked.GuidanceRecoveryTurnAxis)).LengthSquared > 0.0001f;
+					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && tracked.GuidanceRecoveryTurnAxis.LengthSquared > 0.0001f;
 				}
 			}
 			tracked.GuidanceRecoveryActive = true;
@@ -5785,7 +5789,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			{
 				EstimateAutoguidanceTravelDistance(projectilePosition, val, val5, num4, num7, out var recoveryTurnAxis3);
 				recoveryTurnAxis3 = PreferTerrainSafeRecoveryAxis(projectilePosition, val, recoveryTurnAxis3);
-				if (IsFinite(recoveryTurnAxis3) && ((Vec3)(ref recoveryTurnAxis3)).LengthSquared > 0.0001f && (!tracked.GuidanceRecoveryTurnAxisValid || Dot(NormalizeSafe(recoveryTurnAxis3, WorldUp), NormalizeSafe(tracked.GuidanceRecoveryTurnAxis, WorldUp)) < 0.75f) && tracked.GuidanceRecoveryReplanCount == 0)
+				if (IsFinite(recoveryTurnAxis3) && recoveryTurnAxis3.LengthSquared > 0.0001f && (!tracked.GuidanceRecoveryTurnAxisValid || Dot(NormalizeSafe(recoveryTurnAxis3, WorldUp), NormalizeSafe(tracked.GuidanceRecoveryTurnAxis, WorldUp)) < 0.75f) && tracked.GuidanceRecoveryReplanCount == 0)
 				{
 					tracked.GuidanceRecoveryTurnAxis = recoveryTurnAxis3;
 					tracked.GuidanceRecoveryTurnAxisValid = true;
@@ -5804,7 +5808,7 @@ public sealed class GuidedArrowBehavior : MissionView
 						planeNormal = ((Math.Abs(Dot(val, WorldUp)) < 0.9f) ? WorldUp : Cross(val, new Vec3(1f, 0f, 0f, -1f)));
 					}
 					tracked.GuidanceRecoveryTurnAxis = NormalizeSafe(PreferTerrainSafeRecoveryAxis(projectilePosition, val, planeNormal), WorldUp);
-					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && ((Vec3)(ref tracked.GuidanceRecoveryTurnAxis)).LengthSquared > 0.0001f;
+					tracked.GuidanceRecoveryTurnAxisValid = IsFinite(tracked.GuidanceRecoveryTurnAxis) && tracked.GuidanceRecoveryTurnAxis.LengthSquared > 0.0001f;
 				}
 			}
 			if (!tracked.GuidanceRecoveryTurnAxisValid)
@@ -5929,7 +5933,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				bool valid;
 				Vec3 autoguidanceTargetVelocity = GetAutoguidanceTargetVelocity(nextPlannedRouteTarget, out valid);
 				Vec3 val2 = position - predictedHead;
-				float num = ((Vec3)(ref val2)).Length / Math.Max(1f, speed);
+				float num = val2.Length / Math.Max(1f, speed);
 				float num2 = Clamp(currentInterceptTime + num, 0f, 6f);
 				if (valid)
 				{
@@ -5938,7 +5942,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				val = position - predictedHead;
 			}
 		}
-		if (!IsFinite(val) || ((Vec3)(ref val)).LengthSquared <= 1E-06f)
+		if (!IsFinite(val) || val.LengthSquared <= 1E-06f)
 		{
 			val = currentDirection;
 			val.z = 0f;
@@ -5983,7 +5987,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		requestedDirection = NormalizeSafe(requestedDirection, fallbackDirection);
 		Vec3 val = requestedDirection;
 		val.z = 0f;
-		if (!IsFinite(val) || ((Vec3)(ref val)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val) || val.LengthSquared <= 0.0001f)
 		{
 			val = fallbackDirection;
 			val.z = 0f;
@@ -6064,7 +6068,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			return waypoint;
 		}
 		Vec3 val = predictedHead - projectilePosition;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length) || length <= 0.35f)
 		{
 			return predictedHead;
@@ -6146,7 +6150,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				if (tracked.GuidanceObstacleWaypointValid)
 				{
 					val = tracked.GuidanceObstacleWaypoint - projectilePosition;
-					if (((Vec3)(ref val)).LengthSquared <= 2.25f)
+					if (val.LengthSquared <= 2.25f)
 					{
 						tracked.GuidanceObstacleWaypointValid = false;
 					}
@@ -6156,7 +6160,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				if (tracked.GuidanceObstacleGoalValid)
 				{
 					val = tracked.GuidanceObstacleGoal - goal;
-					num = ((((Vec3)(ref val)).LengthSquared > 9f) ? 1 : 0);
+					num = ((val.LengthSquared > 9f) ? 1 : 0);
 				}
 				else
 				{
@@ -6273,7 +6277,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_026a: Unknown result type (might be due to invalid IL or missing references)
 		waypoint = Vec3.Zero;
 		Vec3 val = Cross(NormalizeSafe(goal - projectilePosition, currentDirection), WorldUp);
-		if (!IsFinite(val) || ((Vec3)(ref val)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val) || val.LengthSquared <= 0.0001f)
 		{
 			val = Cross(currentDirection, new Vec3(1f, 0f, 0f, -1f));
 		}
@@ -6298,9 +6302,9 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (IsAutoguidanceWaypointReachable(projectilePosition, currentDirection, val2, effectiveTurnRadius) && !IsAutoguidanceSegmentObstructed(projectilePosition, val2, tracked, out var _, stopBeforeTarget: false) && !IsAutoguidanceSegmentObstructed(val2, goal, tracked, out var _, stopBeforeTarget: true))
 			{
 				Vec3 val3 = val2 - projectilePosition;
-				float length = ((Vec3)(ref val3)).Length;
+				float length = val3.Length;
 				val3 = goal - val2;
-				float num3 = length + ((Vec3)(ref val3)).Length;
+				float num3 = length + val3.Length;
 				num3 += Math.Max(0f, val2.z - hitPoint.z) * 1.75f;
 				if (i == array.Length - 1)
 				{
@@ -6355,7 +6359,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0092: Unknown result type (might be due to invalid IL or missing references)
 		hitPoint = Vec3.Zero;
 		Vec3 val = end - start;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length) || length <= 2f)
 		{
 			return false;
@@ -6365,7 +6369,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		float val4 = (stopBeforeTarget ? 0.9f : 0.2f);
 		Vec3 val5 = end - val2 * Math.Min(val4, length * 0.2f);
 		Vec3 val6 = val5 - val3;
-		float length2 = ((Vec3)(ref val6)).Length;
+		float length2 = val6.Length;
 		if (!IsFinite(length2) || length2 <= 0.5f)
 		{
 			return false;
@@ -6509,7 +6513,7 @@ public sealed class GuidedArrowBehavior : MissionView
 					continue;
 				}
 				Vec3 val2 = end - start;
-				float length = ((Vec3)(ref val2)).Length;
+				float length = val2.Length;
 				collisionDistance = length * 0.5f;
 				for (int num4 = 0; num4 < parameters.Length; num4++)
 				{
@@ -6575,7 +6579,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_00d2: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedPhysicalHead - projectilePosition;
 		val.z = 0f;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.05f)
 		{
 			return predictedHead;
@@ -6618,7 +6622,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_015f: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0043: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedHead - projectilePosition;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(val) || !IsFinite(length) || length <= 0.1f)
 		{
 			return predictedHead;
@@ -6686,7 +6690,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0268: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedPhysicalHead - projectilePosition;
 		val.z = 0f;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.05f)
 		{
 			return predictedHead;
@@ -6771,7 +6775,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_00b6: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedPhysicalHead - projectilePosition;
 		val.z = 0f;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.05f)
 		{
 			return predictedHead;
@@ -6839,7 +6843,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_016d: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedPhysicalHead - projectilePosition;
 		val.z = 0f;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.05f)
 		{
 			return predictedHead;
@@ -6920,7 +6924,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0216: Unknown result type (might be due to invalid IL or missing references)
 		Vec3 val = predictedPhysicalHead - projectilePosition;
 		val.z = 0f;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.05f)
 		{
 			return predictedHead;
@@ -6940,7 +6944,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		else
 		{
 			Vec3 val4 = projectilePosition - tracked.GuidanceLaunchPosition;
-			num2 = ((Vec3)(ref val4)).Length;
+			num2 = val4.Length;
 		}
 		float num3 = Clamp(effectiveTurnRadius * 1.65f, 18f, 48f);
 		float num4 = ((GetAutoguidanceProfileSide(tracked) < 0f) ? 0f : ((float)Math.PI));
@@ -7048,7 +7052,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			return desiredDirection;
 		}
 		Vec3 val = predictedHead - projectilePosition;
-		float length = ((Vec3)(ref val)).Length;
+		float length = val.Length;
 		if (!IsFinite(length) || length <= 0.75f)
 		{
 			return desiredDirection;
@@ -7097,12 +7101,12 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 		Vec3 val3 = desiredDirection;
 		val3.z = 0f;
-		if (!IsFinite(val3) || ((Vec3)(ref val3)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val3) || val3.LengthSquared <= 0.0001f)
 		{
 			val3 = currentDirection;
 			val3.z = 0f;
 		}
-		if (!IsFinite(val3) || ((Vec3)(ref val3)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val3) || val3.LengthSquared <= 0.0001f)
 		{
 			val3 = predictedHead - projectilePosition;
 			val3.z = 0f;
@@ -7178,7 +7182,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		currentDirection = NormalizeSafe(currentDirection, new Vec3(0f, 1f, 0f, -1f));
 		desiredDirection = NormalizeSafe(desiredDirection, currentDirection);
 		Vec3 val = Cross(currentDirection, WorldUp);
-		if (!IsFinite(val) || ((Vec3)(ref val)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val) || val.LengthSquared <= 0.0001f)
 		{
 			val = Cross(currentDirection, new Vec3(0f, 1f, 0f, -1f));
 		}
@@ -7221,8 +7225,8 @@ public sealed class GuidedArrowBehavior : MissionView
 		if (IsFinite(val))
 		{
 			float num = (float)Math.Sqrt(val.x * val.x + val.y * val.y);
-			float length = ((Vec3)(ref tracked.LastCommandedVelocity)).Length;
-			float length2 = ((Vec3)(ref currentVelocity)).Length;
+			float length = tracked.LastCommandedVelocity.Length;
+			float length2 = currentVelocity.Length;
 			float num2 = Math.Max(3f, Math.Abs(val.z) * 0.3f);
 			float num3 = Math.Max(1.5f, Math.Max(length, length2) * 0.06f);
 			if (IsFinite(num) && !(num > num2) && IsFinite(length) && IsFinite(length2) && !(Math.Abs(length2 - length) > num3))
@@ -7378,7 +7382,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		try
 		{
 			Vec3 velocity = target.Velocity;
-			float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+			float lengthSquared = velocity.LengthSquared;
 			if (IsFinite(velocity) && IsFinite(lengthSquared) && lengthSquared <= 1600f)
 			{
 				valid = true;
@@ -7466,23 +7470,23 @@ public sealed class GuidedArrowBehavior : MissionView
 			}
 			CapsuleData val2 = default(CapsuleData);
 			val.GetBoneBody((sbyte)boneIndex, ref val2);
-			if (!IsFinite(((CapsuleData)(ref val2)).P1) || !IsFinite(((CapsuleData)(ref val2)).P2) || !IsFinite(((CapsuleData)(ref val2)).Radius) || ((CapsuleData)(ref val2)).Radius <= 1E-06f)
+			if (!IsFinite(val2.P1) || !IsFinite(val2.P2) || !IsFinite(val2.Radius) || val2.Radius <= 1E-06f)
 			{
 				return false;
 			}
-			Vec3 val3 = (((CapsuleData)(ref val2)).P1 + ((CapsuleData)(ref val2)).P2) * 0.5f;
+			Vec3 val3 = (val2.P1 + val2.P2) * 0.5f;
 			MatrixFrame globalFrame = agentVisuals.GetGlobalFrame();
 			Vec3 val4 = TransformEntitialPointToWorld(globalFrame, frame.origin);
 			Vec3 entitialPoint = frame.origin + frame.rotation.s * val3.x + frame.rotation.f * val3.y + frame.rotation.u * val3.z;
 			Vec3 val5 = TransformEntitialPointToWorld(globalFrame, entitialPoint);
 			Vec3 val6 = TransformEntitialPointToWorld(globalFrame, val3);
 			Vec3 val7 = val5 - val4;
-			float lengthSquared = ((Vec3)(ref val7)).LengthSquared;
+			float lengthSquared = val7.LengthSquared;
 			val7 = val6 - val4;
-			float lengthSquared2 = ((Vec3)(ref val7)).LengthSquared;
+			float lengthSquared2 = val7.LengthSquared;
 			Vec3 val8 = ((lengthSquared <= lengthSquared2) ? val5 : val6);
 			float num = Math.Min(lengthSquared, lengthSquared2);
-			float num2 = Clamp(Math.Max(0.75f, ((CapsuleData)(ref val2)).Radius * 6f), 0.75f, 2.5f);
+			float num2 = Clamp(Math.Max(0.75f, val2.Radius * 6f), 0.75f, 2.5f);
 			if (!IsFinite(val8) || !IsFinite(num) || num > num2 * num2)
 			{
 				return false;
@@ -7682,7 +7686,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		Vec3 val = NormalizeSafe(currentDirection, new Vec3(0f, 1f, 0f, -1f));
 		Vec3 val2 = ((tracked != null && tracked.ManualSteeringRightValid) ? tracked.ManualSteeringRight : Cross(val, WorldUp));
 		val2 -= val * Dot(val2, val);
-		if (!IsFinite(val2) || ((Vec3)(ref val2)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val2) || val2.LengthSquared <= 0.0001f)
 		{
 			val2 = Cross(val, (Vec3)((Math.Abs(val.z) > 0.9f) ? new Vec3(0f, 1f, 0f, -1f) : WorldUp));
 		}
@@ -7699,7 +7703,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 		val2 -= val * Dot(val2, val);
 		val2 = NormalizeSafe(val2, Cross(val, WorldUp));
-		if (tracked != null && IsFinite(val2) && ((Vec3)(ref val2)).LengthSquared > 0.0001f)
+		if (tracked != null && IsFinite(val2) && val2.LengthSquared > 0.0001f)
 		{
 			tracked.ManualSteeringRight = val2;
 			tracked.ManualSteeringRightValid = true;
@@ -7844,7 +7848,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				Vec3 position = ((MBMissile)trackedMissile2.Missile).GetPosition();
 				Vec3 velocity = ((MBMissile)trackedMissile2.Missile).GetVelocity();
 				Vec3 val = position - pendingShotSeed.Position;
-				float lengthSquared = ((Vec3)(ref val)).LengthSquared;
+				float lengthSquared = val.LengthSquared;
 				float num2 = Dot(NormalizeSafe(velocity, _shotDirection), NormalizeSafe(pendingShotSeed.Velocity, _shotDirection));
 				float num3 = lengthSquared + (1f - num2) * 4f;
 				if (num3 < num)
@@ -7922,7 +7926,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 		_pendingShotPosition = position;
 		_pendingShotVelocity = velocity;
-		_003F fallback;
+		Vec3 fallback;
 		if (shooter == null)
 		{
 			Mission mission = ((MissionBehavior)this).Mission;
@@ -7936,13 +7940,13 @@ public sealed class GuidedArrowBehavior : MissionView
 				Agent mainAgent = mission.MainAgent;
 				obj = ((mainAgent != null) ? new Vec3?(mainAgent.LookDirection) : ((Vec3?)null));
 			}
-			fallback = ((_003F?)obj) ?? new Vec3(0f, 1f, 0f, -1f);
+			fallback = obj ?? new Vec3(0f, 1f, 0f, -1f);
 		}
 		else
 		{
 			fallback = shooter.LookDirection;
 		}
-		_shotDirection = NormalizeSafe(velocity, (Vec3)fallback);
+		_shotDirection = NormalizeSafe(velocity, fallback);
 	}
 
 	private bool IsTrackedMissileIdentityValid(TrackedMissile tracked)
@@ -7988,7 +7992,7 @@ public sealed class GuidedArrowBehavior : MissionView
 						return false;
 					}
 					MissionWeapon weapon = item2.Weapon;
-					ItemObject item = ((MissionWeapon)(ref weapon)).Item;
+					ItemObject item = weapon.Item;
 					if (tracked.IdentityItem != null && item != tracked.IdentityItem)
 					{
 						return false;
@@ -8041,7 +8045,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		try
 		{
 			Vec3 velocity = ((MBMissile)liveMissile).GetVelocity();
-			float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+			float lengthSquared = velocity.LengthSquared;
 			if (!IsFinite(velocity) || !IsFinite(lengthSquared) || lengthSquared <= 0.0625f)
 			{
 				return tracked.Index != _cameraMissileIndex || TryPromoteCameraOwnerWithinSwarm(tracked.Index);
@@ -8488,15 +8492,15 @@ public sealed class GuidedArrowBehavior : MissionView
 			return false;
 		}
 		Vec3 impactVelocity = collisionContext.ImpactVelocity;
-		float num = ((Vec3)(ref impactVelocity)).Length;
+		float num = impactVelocity.Length;
 		Vec3 val = ((IsFinite(impactVelocity) && IsFinite(num) && num > 1E-06f) ? (impactVelocity / num) : NormalizeSafe(collisionContext.ImpactDirection, source.GuidanceFallbackDirection));
-		if (!IsFinite(val) || ((Vec3)(ref val)).LengthSquared <= 0.0001f)
+		if (!IsFinite(val) || val.LengthSquared <= 0.0001f)
 		{
 			val = NormalizeSafe(source.GuidanceFallbackDirection, _lastMissileDirection);
 		}
 		if (!IsFinite(num) || num <= 1E-06f)
 		{
-			float length = ((Vec3)(ref source.GuidanceLaunchVelocity)).Length;
+			float length = source.GuidanceLaunchVelocity.Length;
 			num = ((IsFinite(length) && length > 1E-06f) ? length : source.SpawnBaseSpeed);
 		}
 		if (!IsFinite(num) || num <= 1E-06f)
@@ -9003,7 +9007,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			else
 			{
 				MissionWeapon weapon = missile2.Weapon;
-				obj = ((MissionWeapon)(ref weapon)).Item;
+				obj = weapon.Item;
 			}
 			string text = ((obj != null) ? ((ItemObject)obj).MultiMeshName : null);
 			if (val == (GameEntity)null || string.IsNullOrEmpty(text))
@@ -9333,11 +9337,11 @@ public sealed class GuidedArrowBehavior : MissionView
 		flightForward = NormalizeSafe(flightForward, new Vec3(0f, 1f, 0f, -1f));
 		Vec3 val = flightForward;
 		Vec3 val2 = nativeFrame.rotation.u - val * Dot(nativeFrame.rotation.u, val);
-		if (!IsFinite(val2) || ((Vec3)(ref val2)).LengthSquared <= 1E-06f)
+		if (!IsFinite(val2) || val2.LengthSquared <= 1E-06f)
 		{
 			val2 = WorldUp - val * Dot(WorldUp, val);
 		}
-		if (!IsFinite(val2) || ((Vec3)(ref val2)).LengthSquared <= 1E-06f)
+		if (!IsFinite(val2) || val2.LengthSquared <= 1E-06f)
 		{
 			val2 = nativeFrame.rotation.f - val * Dot(nativeFrame.rotation.f, val);
 		}
@@ -9432,7 +9436,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				if (IsFinite(globalPosition))
 				{
 					Vec3 result = globalPosition - ragdollVisualPosition;
-					if (((Vec3)(ref result)).LengthSquared <= 25f)
+					if (result.LengthSquared <= 25f)
 					{
 						result = Lerp(ragdollVisualPosition, globalPosition, 0.6f);
 						return result;
@@ -10059,7 +10063,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			_settledElapsed = 0f;
 			_cinematicSawActiveRagdoll = false;
 			_returnDurationOverride = 0f;
-			if (!IsFinite(_impactDirection) || ((Vec3)(ref _impactDirection)).LengthSquared <= 1E-06f)
+			if (!IsFinite(_impactDirection) || _impactDirection.LengthSquared <= 1E-06f)
 			{
 				_impactDirection = _lastMissileDirection;
 			}
@@ -10406,7 +10410,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				if (cinematicSubjectRecord.LastSampleValid)
 				{
 					val = position - cinematicSubjectRecord.LastSamplePosition;
-					float length = ((Vec3)(ref val)).Length;
+					float length = val.Length;
 					if (!IsFinite(length) || length > num)
 					{
 						flag2 = false;
@@ -10448,7 +10452,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			if (_lastRestPositionValid)
 			{
 				val = ragdollVisualPosition - _lastRestPosition;
-				if (((Vec3)(ref val)).Length <= num)
+				if (val.Length <= num)
 				{
 					_settledElapsed += 0.1f;
 				}
@@ -11033,7 +11037,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				if (IsFinite(position))
 				{
 					val3 = position - swarmAnchor;
-					float length = ((Vec3)(ref val3)).Length;
+					float length = val3.Length;
 					if (IsFinite(length) && length > num2)
 					{
 						num2 = length;
@@ -11093,7 +11097,7 @@ public sealed class GuidedArrowBehavior : MissionView
 				try
 				{
 					val3 = ((MBMissile)_trackedMissiles[k].Missile).GetPosition() - val5;
-					float lengthSquared = ((Vec3)(ref val3)).LengthSquared;
+					float lengthSquared = val3.LengthSquared;
 					if (IsFinite(lengthSquared) && !(lengthSquared >= num4))
 					{
 						num4 = lengthSquared;
@@ -11122,7 +11126,7 @@ public sealed class GuidedArrowBehavior : MissionView
 			try
 			{
 				Vec3 velocity = ((MBMissile)_trackedMissiles[i].Missile).GetVelocity();
-				float lengthSquared = ((Vec3)(ref velocity)).LengthSquared;
+				float lengthSquared = velocity.LengthSquared;
 				if (IsFinite(velocity) && IsFinite(lengthSquared) && !(lengthSquared <= 1E-06f))
 				{
 					float num2 = (float)Math.Sqrt(lengthSquared);
@@ -11581,7 +11585,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0077: Unknown result type (might be due to invalid IL or missing references)
 		viewForward = NormalizeSafe(viewForward, new Vec3(0f, 1f, 0f, -1f));
 		Vec3 val = Cross(viewForward, upHint);
-		if (!IsFinite(val) || ((Vec3)(ref val)).LengthSquared <= 1E-06f)
+		if (!IsFinite(val) || val.LengthSquared <= 1E-06f)
 		{
 			val = Cross(viewForward, (Vec3)((Math.Abs(viewForward.z) > 0.9f) ? new Vec3(0f, 1f, 0f, -1f) : WorldUp));
 		}
@@ -11630,12 +11634,12 @@ public sealed class GuidedArrowBehavior : MissionView
 			return target;
 		}
 		Vec3 value = Cross(current, target);
-		if (((Vec3)(ref value)).LengthSquared <= 1E-06f)
+		if (value.LengthSquared <= 1E-06f)
 		{
 			value = Cross(current, WorldUp);
-			if (((Vec3)(ref value)).LengthSquared <= 1E-06f)
+			if (value.LengthSquared <= 1E-06f)
 			{
-				((Vec3)(ref value))._002Ector(1f, 0f, 0f, -1f);
+				value = new Vec3(1f, 0f, 0f, -1f);
 			}
 		}
 		return NormalizeSafe(RotateAroundAxis(current, NormalizeSafe(value, WorldUp), maxAngle), target);
@@ -11730,11 +11734,11 @@ public sealed class GuidedArrowBehavior : MissionView
 		//IL_0045: Unknown result type (might be due to invalid IL or missing references)
 		//IL_004b: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0054: Unknown result type (might be due to invalid IL or missing references)
-		if (!IsFinite(value) || ((Vec3)(ref value)).LengthSquared <= 1E-06f)
+		if (!IsFinite(value) || value.LengthSquared <= 1E-06f)
 		{
 			value = fallback;
 		}
-		float lengthSquared = ((Vec3)(ref value)).LengthSquared;
+		float lengthSquared = value.LengthSquared;
 		if (!IsFinite(lengthSquared) || lengthSquared <= 1E-06f)
 		{
 			return new Vec3(0f, 1f, 0f, -1f);
@@ -11802,7 +11806,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		try
 		{
 			string logPath = LogPath;
-			Directory.CreateDirectory(Path.GetDirectoryName(logPath));
+			Directory.CreateDirectory(System.IO.Path.GetDirectoryName(logPath));
 			File.AppendAllText(logPath, DateTime.Now.ToString("O") + " " + message + Environment.NewLine);
 		}
 		catch
@@ -11810,3 +11814,7 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 	}
 }
+
+
+
+

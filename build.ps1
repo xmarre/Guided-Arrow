@@ -4,10 +4,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$CoreProject = Join-Path $Root "src/GuidedArrow.Core/GuidedArrow.Core.csproj"
 $ProgressionProject = Join-Path $Root "src/GuidedArrow.Progression/GuidedArrow.Progression.csproj"
 $Artifacts = Join-Path $Root "artifacts"
+$CoreBuildOut = Join-Path $Artifacts "core-build"
 $ProgressionBuildOut = Join-Path $Artifacts "progression-build"
-$Stage = Join-Path $Artifacts "stage"
+$StableStage = Join-Path $Artifacts "stage-stable"
+$CandidateStage = Join-Path $Artifacts "stage-source-core-candidate"
+$SourceStageRoot = Join-Path $Artifacts "stage-source"
 $Dist = Join-Path $Root "dist"
 $Checksums = Join-Path $Root "checksums/SHA256SUMS.txt"
 $Version = "1.3.6"
@@ -60,37 +64,66 @@ function New-DeterministicZip {
     }
 }
 
+function New-ModuleStage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [Parameter(Mandatory = $true)][string]$CoreDll,
+        [Parameter(Mandatory = $true)][string]$ProgressionDll,
+        [Parameter(Mandatory = $true)][string]$ProgressionPdb
+    )
+
+    $moduleSource = Join-Path $Root "module/GuidedArrow"
+    Copy-Item $moduleSource $Destination -Recurse -Force
+    $destinationBin = Join-Path $Destination "bin/Win64_Shipping_Client"
+    Copy-Item $CoreDll (Join-Path $destinationBin "GuidedArrow.dll") -Force
+    Copy-Item $ProgressionDll (Join-Path $destinationBin "GuidedArrow.Progression.dll") -Force
+    Copy-Item $ProgressionPdb (Join-Path $destinationBin "GuidedArrow.Progression.pdb") -Force
+}
+
 Remove-Item $Artifacts -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item $Dist -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $ProgressionBuildOut, $Stage, $Dist | Out-Null
+New-Item -ItemType Directory -Force -Path $CoreBuildOut, $ProgressionBuildOut, $StableStage, $CandidateStage, $SourceStageRoot, $Dist | Out-Null
 
 $ModuleBin = Join-Path $Root "module/GuidedArrow/bin/Win64_Shipping_Client"
-$CoreDll = Join-Path $ModuleBin "GuidedArrow.dll"
-if (-not (Test-Path $CoreDll)) {
-    throw "The preserved GuidedArrow.dll core runtime is missing."
+$VerifiedCoreDll = Join-Path $ModuleBin "GuidedArrow.dll"
+if (-not (Test-Path $VerifiedCoreDll)) {
+    throw "The verified GuidedArrow.dll core runtime is missing."
 }
-$coreHash = (Get-FileHash $CoreDll -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($coreHash -ne $ExpectedCoreSha256) {
-    throw "GuidedArrow.dll integrity failure. Expected stable v1.1.17 core $ExpectedCoreSha256, got $coreHash. Only the verified core may be packaged."
+$verifiedCoreHash = (Get-FileHash $VerifiedCoreDll -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($verifiedCoreHash -ne $ExpectedCoreSha256) {
+    throw "GuidedArrow.dll integrity failure. Expected stable v1.1.17 core $ExpectedCoreSha256, got $verifiedCoreHash."
 }
-Write-Host "Verified stable GuidedArrow.dll SHA-256: $coreHash"
+Write-Host "Verified binary core SHA-256: $verifiedCoreHash"
+
+dotnet restore $CoreProject
+dotnet build $CoreProject -c $Configuration --no-restore -o $CoreBuildOut /p:ContinuousIntegrationBuild=true /p:UseSharedCompilation=false
+$SourceCoreDll = Join-Path $CoreBuildOut "GuidedArrow.dll"
+if (-not (Test-Path $SourceCoreDll)) {
+    throw "The source-built GuidedArrow.dll was not produced."
+}
+$sourceCoreHash = (Get-FileHash $SourceCoreDll -Algorithm SHA256).Hash.ToLowerInvariant()
+Write-Host "Source-built core SHA-256: $sourceCoreHash"
 
 dotnet restore $ProgressionProject
 dotnet build $ProgressionProject -c $Configuration --no-restore -o $ProgressionBuildOut /p:ContinuousIntegrationBuild=true /p:UseSharedCompilation=false
-Copy-Item (Join-Path $ProgressionBuildOut "GuidedArrow.Progression.dll") (Join-Path $ModuleBin "GuidedArrow.Progression.dll") -Force
-Copy-Item (Join-Path $ProgressionBuildOut "GuidedArrow.Progression.pdb") (Join-Path $ModuleBin "GuidedArrow.Progression.pdb") -Force
+$ProgressionDll = Join-Path $ProgressionBuildOut "GuidedArrow.Progression.dll"
+$ProgressionPdb = Join-Path $ProgressionBuildOut "GuidedArrow.Progression.pdb"
 
-$ModuleStage = Join-Path $Stage "GuidedArrow"
-Copy-Item (Join-Path $Root "module/GuidedArrow") $ModuleStage -Recurse -Force
+$StableModuleStage = Join-Path $StableStage "GuidedArrow"
+$CandidateModuleStage = Join-Path $CandidateStage "GuidedArrow"
+New-ModuleStage -Destination $StableModuleStage -CoreDll $VerifiedCoreDll -ProgressionDll $ProgressionDll -ProgressionPdb $ProgressionPdb
+New-ModuleStage -Destination $CandidateModuleStage -CoreDll $SourceCoreDll -ProgressionDll $ProgressionDll -ProgressionPdb $ProgressionPdb
 
 $CompiledZip = Join-Path $Dist "GuidedArrow-v$Version-Bannerlord-1.3.15-to-1.4.7-Universal.zip"
-New-DeterministicZip -SourceDirectory $Stage -DestinationPath $CompiledZip
+$CandidateZip = Join-Path $Dist "GuidedArrow-v$Version-SOURCE-CORE-CANDIDATE-Bannerlord-1.3.15-to-1.4.7-Universal.zip"
+New-DeterministicZip -SourceDirectory $StableStage -DestinationPath $CompiledZip
+New-DeterministicZip -SourceDirectory $CandidateStage -DestinationPath $CandidateZip
 
-$SourceStage = Join-Path $Stage "GuidedArrow-v$Version-SOURCE"
+$SourceStage = Join-Path $SourceStageRoot "GuidedArrow-v$Version-SOURCE"
 New-Item -ItemType Directory -Force -Path $SourceStage | Out-Null
 Copy-Item (Join-Path $Root "src") $SourceStage -Recurse -Force
 Copy-Item (Join-Path $Root "module") $SourceStage -Recurse -Force
-Copy-Item (Join-Path $Root "README.md"), (Join-Path $Root "CONFIGURATION.md"), (Join-Path $Root "CHANGELOG.md"), (Join-Path $Root "BUILD.md"), (Join-Path $Root "GuidedArrow.sln"), (Join-Path $Root "build.ps1") $SourceStage -Force
+Copy-Item (Join-Path $Root "README.md"), (Join-Path $Root "CONFIGURATION.md"), (Join-Path $Root "CHANGELOG.md"), (Join-Path $Root "BUILD.md"), (Join-Path $Root "CORE_SOURCE_MIGRATION.md"), (Join-Path $Root "GuidedArrow.sln"), (Join-Path $Root "build.ps1") $SourceStage -Force
 
 Get-ChildItem $SourceStage -Directory -Recurse -Force |
     Where-Object { $_.Name -in @('bin', 'obj', '__pycache__') } |
@@ -101,14 +134,16 @@ Get-ChildItem $SourceStage -File -Recurse -Force |
     Remove-Item -Force
 
 $SourceZip = Join-Path $Dist "GuidedArrow-v$Version-SOURCE.zip"
-New-DeterministicZip -SourceDirectory $SourceStage -DestinationPath $SourceZip
+New-DeterministicZip -SourceDirectory $SourceStageRoot -DestinationPath $SourceZip
 
 $Files = @(
     $CompiledZip,
+    $CandidateZip,
     $SourceZip,
-    $CoreDll,
-    (Join-Path $ModuleBin "GuidedArrow.Progression.dll"),
-    (Join-Path $ModuleBin "GuidedArrow.Progression.pdb")
+    $VerifiedCoreDll,
+    $SourceCoreDll,
+    $ProgressionDll,
+    $ProgressionPdb
 )
 $Lines = foreach ($File in $Files) {
     $Hash = (Get-FileHash $File -Algorithm SHA256).Hash.ToLowerInvariant()
