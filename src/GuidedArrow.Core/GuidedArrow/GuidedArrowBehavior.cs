@@ -14,6 +14,8 @@ using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.View.MissionViews;
 using TaleWorlds.MountAndBlade.View.Screens;
 using TaleWorlds.ScreenSystem;
+using Missile = TaleWorlds.MountAndBlade.Mission.Missile;
+using MissileCollisionReaction = TaleWorlds.MountAndBlade.Mission.MissileCollisionReaction;
 
 namespace GuidedArrow;
 
@@ -11810,5 +11812,6 @@ public sealed class GuidedArrowBehavior : MissionView
 		}
 	}
 }
+
 
 
