@@ -431,7 +431,7 @@ internal static class MissileDamageBridge
 			return false;
 		}
 		Vec3 val = NormalizeSafe(expectedLaunchVelocity);
-		bool flag = IsFinite(val) && ((Vec3)(ref val)).LengthSquared > 0.5f;
+		bool flag = IsFinite(val) && val.LengthSquared > 0.5f;
 		bool flag2 = IsFinite(expectedLaunchPosition);
 		long timestamp = Stopwatch.GetTimestamp();
 		RecentLaunch recentLaunch = null;
@@ -454,7 +454,7 @@ internal static class MissileDamageBridge
 				if (flag2 && IsFinite(recentLaunch2.Position))
 				{
 					Vec3 val2 = recentLaunch2.Position - expectedLaunchPosition;
-					float lengthSquared = ((Vec3)(ref val2)).LengthSquared;
+					float lengthSquared = val2.LengthSquared;
 					if (!IsFinite(lengthSquared) || lengthSquared > 400f)
 					{
 						continue;
@@ -464,7 +464,7 @@ internal static class MissileDamageBridge
 				if (flag)
 				{
 					Vec3 val3 = NormalizeSafe(recentLaunch2.Direction);
-					if (!IsFinite(val3) || ((Vec3)(ref val3)).LengthSquared <= 0.5f)
+					if (!IsFinite(val3) || val3.LengthSquared <= 0.5f)
 					{
 						continue;
 					}
@@ -500,7 +500,7 @@ internal static class MissileDamageBridge
 		//IL_0018: Unknown result type (might be due to invalid IL or missing references)
 		//IL_001e: Unknown result type (might be due to invalid IL or missing references)
 		//IL_0027: Unknown result type (might be due to invalid IL or missing references)
-		float lengthSquared = ((Vec3)(ref value)).LengthSquared;
+		float lengthSquared = value.LengthSquared;
 		if (!IsFinite(lengthSquared) || lengthSquared <= 1E-06f)
 		{
 			return Vec3.Zero;
@@ -570,3 +570,4 @@ internal static class MissileDamageBridge
 		}
 	}
 }
+
