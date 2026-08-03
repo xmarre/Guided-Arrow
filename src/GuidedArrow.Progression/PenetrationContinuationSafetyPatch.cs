@@ -18,7 +18,11 @@ namespace GuidedArrow.Progression
     {
         private const float CoreContinuationOffset = 0.42f;
         private const float SafeContinuationExitDistance = 1.25f;
+        private const float LaunchTerrainMargin = 0.08f;
+        private const float LaunchLookAheadDistance = 0.60f;
+        private const int LaunchTerrainSamples = 4;
 
+        private static PropertyInfo _missionProperty;
         private static FieldInfo _impactPositionField;
         private static FieldInfo _impactVelocityField;
         private static FieldInfo _impactDirectionField;
@@ -71,6 +75,7 @@ namespace GuidedArrow.Progression
             Type trackedType = parameters[0].ParameterType;
             Type contextType = parameters[1].ParameterType;
 
+            _missionProperty = AccessTools.Property(behaviorType, "Mission");
             _impactPositionField = AccessTools.Field(contextType, "ImpactPosition");
             _impactVelocityField = AccessTools.Field(contextType, "ImpactVelocity");
             _impactDirectionField = AccessTools.Field(contextType, "ImpactDirection");
@@ -113,7 +118,10 @@ namespace GuidedArrow.Progression
             {
                 harmony.Patch(
                     spawnMethod,
-                    prefix: new HarmonyMethod(AccessTools.Method(typeof(PenetrationContinuationSafetyPatch), nameof(SpawnPrefix))),
+                    prefix: new HarmonyMethod(AccessTools.Method(typeof(PenetrationContinuationSafetyPatch), nameof(SpawnPrefix)))
+                    {
+                        priority = Priority.Last
+                    },
                     postfix: new HarmonyMethod(AccessTools.Method(typeof(PenetrationContinuationSafetyPatch), nameof(SpawnPostfix))));
             }
             catch
@@ -186,7 +194,11 @@ namespace GuidedArrow.Progression
             }
         }
 
-        private static bool SpawnPrefix(object[] __args, out ContinuationPatchState __state)
+        private static bool SpawnPrefix(
+            object __instance,
+            object[] __args,
+            ref bool __result,
+            out ContinuationPatchState __state)
         {
             __state = null;
             if (__args == null || __args.Length < 2 || __args[1] == null)
@@ -221,7 +233,21 @@ namespace GuidedArrow.Progression
                 // distance was captured during OnMissileHit and is now pure managed data; this
                 // deferred worker never dereferences the old victim or its native presentation.
                 float additionalOffset = Math.Max(0f, desiredExitDistance - CoreContinuationOffset);
-                _impactPositionField.SetValue(context, impactPosition + direction * additionalOffset);
+                Vec3 adjustedImpactPosition = impactPosition + direction * additionalOffset;
+                Vec3 finalLaunchPosition = adjustedImpactPosition + direction * CoreContinuationOffset;
+
+                // A steep downward victim exit can cross the terrain surface. Spawning there creates
+                // a valid moving missile below the map, so no later world-impact callback necessarily
+                // terminates it and the projectile camera follows it out of bounds. Treat the terrain
+                // intersection as the arrow's real terminal ground hit before AddCustomMissile runs.
+                if (!IsContinuationLaunchTerrainClear(__instance, finalLaunchPosition, direction))
+                {
+                    if (__args.Length > 2) __args[2] = null;
+                    __result = false;
+                    return false;
+                }
+
+                _impactPositionField.SetValue(context, adjustedImpactPosition);
 
                 __state = new ContinuationPatchState
                 {
@@ -397,6 +423,49 @@ namespace GuidedArrow.Progression
             {
                 // The stable core retains control if a future version changes these fields.
             }
+        }
+
+        private static bool IsContinuationLaunchTerrainClear(
+            object instance,
+            Vec3 launchPosition,
+            Vec3 direction)
+        {
+            Mission mission = ResolveMission(instance);
+            if (mission?.Scene == null) return true;
+
+            int denominator = Math.Max(1, LaunchTerrainSamples - 1);
+            for (int i = 0; i < LaunchTerrainSamples; i++)
+            {
+                float distance = LaunchLookAheadDistance * i / denominator;
+                Vec3 point = launchPosition + direction * distance;
+                try
+                {
+                    float groundHeight = mission.Scene.GetGroundHeightAtPosition(point);
+                    if (IsFinite(groundHeight) && point.z <= groundHeight + LaunchTerrainMargin)
+                        return false;
+                }
+                catch
+                {
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+        private static Mission ResolveMission(object instance)
+        {
+            if (_missionProperty != null && instance != null)
+            {
+                try
+                {
+                    Mission mission = _missionProperty.GetValue(instance, null) as Mission;
+                    if (mission != null) return mission;
+                }
+                catch { }
+            }
+
+            return Mission.Current;
         }
 
         private static bool TryComputeNormalizedDirection(

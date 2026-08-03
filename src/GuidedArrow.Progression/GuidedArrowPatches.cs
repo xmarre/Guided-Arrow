@@ -45,7 +45,6 @@ namespace GuidedArrow.Progression
             ContinuationReleaseGateRelaxationPatch.Install(harmony, behaviorType);
             TerminalContinuationLaunchSafetyPatch.Install(harmony, behaviorType);
             PenetrationContinuationSafetyPatch.Install(harmony, behaviorType);
-            ContinuationTerrainSafetyPatch.Install(harmony, behaviorType);
             // The locked core already drains deferred native work from GuidedArrowBehavior.OnMissionTick.
             // Moving AddCustomMissile into OnPreDisplayMissionTick can raise AccessViolationException.
             FinalMissileTerminalHandoffPatch.Install(harmony, behaviorType);
