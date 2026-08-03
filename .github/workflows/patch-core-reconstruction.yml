@@ -1,0 +1,64 @@
+name: Repair remaining core reconstruction
+
+on:
+  push:
+    branches: [refactor/source-core-build]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor/source-core-build
+          fetch-depth: 0
+
+      - name: Repair recovered C# constructs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = 'src/GuidedArrow.Core/GuidedArrow/GuidedArrowBehavior.cs'
+          $content = Get-Content $file -Raw
+
+          $aliasAnchor = 'using MissileCollisionReaction = TaleWorlds.MountAndBlade.Mission.MissileCollisionReaction;'
+          $aliasBlock = @"
+          $aliasAnchor
+          using OnAgentHealthChangedDelegate = TaleWorlds.MountAndBlade.Agent.OnAgentHealthChangedDelegate;
+          using TimeSpeedRequest = TaleWorlds.MountAndBlade.Mission.TimeSpeedRequest;
+          "@
+          if ($content -notmatch 'using OnAgentHealthChangedDelegate =') {
+            $content = $content.Replace($aliasAnchor, $aliasBlock.TrimEnd())
+          }
+
+          $replacements = [ordered]@{
+            'return Path.Combine(folderPath, "Mount and Blade II Bannerlord", "Configs", "ModLogs", "GuidedArrow.log");' = 'return System.IO.Path.Combine(folderPath, "Mount and Blade II Bannerlord", "Configs", "ModLogs", "GuidedArrow.log");'
+            'Directory.CreateDirectory(Path.GetDirectoryName(logPath));' = 'Directory.CreateDirectory(System.IO.Path.GetDirectoryName(logPath));'
+            '_003F fallback;' = 'Vec3 fallback;'
+            'fallback = ((_003F?)obj) ?? new Vec3(0f, 1f, 0f, -1f);' = 'fallback = obj ?? new Vec3(0f, 1f, 0f, -1f);'
+            '_shotDirection = NormalizeSafe(velocity, (Vec3)fallback);' = '_shotDirection = NormalizeSafe(velocity, fallback);'
+            'value._002Ector(1f, 0f, 0f, -1f);' = 'value = new Vec3(1f, 0f, 0f, -1f);'
+          }
+          foreach ($entry in $replacements.GetEnumerator()) {
+            if (-not $content.Contains($entry.Key)) {
+              Write-Host "Replacement source not present or already repaired: $($entry.Key)"
+            }
+            $content = $content.Replace($entry.Key, $entry.Value)
+          }
+          Set-Content $file $content -Encoding UTF8
+
+      - name: Commit repairs
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/GuidedArrow.Core/GuidedArrow/GuidedArrowBehavior.cs
+          if (git diff --cached --quiet) {
+            Write-Host 'No reconstruction repairs required.'
+            exit 0
+          }
+          git commit -m 'Repair remaining recovered core constructs'
+          git push origin HEAD:refactor/source-core-build
